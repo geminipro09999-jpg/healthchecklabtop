@@ -36,15 +36,17 @@ def verify_password(password: str, salt_hex: str, hash_hex: str) -> bool:
     except Exception:
         return False
 
+DEFAULT_ADMIN_SALT = "970822925df90d7897feb0dec7976197"
+DEFAULT_ADMIN_HASH = "bf1683a9483b52b3f5f44b74affe52d3daa675923d6f62fe30f1da86ae89e94a"
+
 def load_config() -> dict:
-    """Loads config.json. If it doesn't exist, initializes it with a secure default hashed admin password."""
+    """Loads config.json. If it doesn't exist, initializes it with default hashed admin password."""
     if not os.path.exists(CONFIG_FILE):
-        salt_hex, hash_hex = hash_password("admin123")
         initial_config = {
             "server_port": 8080,
-            "admin_salt": salt_hex,
-            "admin_password_hash": hash_hex,
-            "session_secret": secrets.token_hex(32),
+            "admin_salt": DEFAULT_ADMIN_SALT,
+            "admin_password_hash": DEFAULT_ADMIN_HASH,
+            "session_secret": DEFAULT_SESSION_SECRET,
             "session_duration_hours": 24,
             "gdrive": {
                 "enabled": False,
@@ -58,14 +60,17 @@ def load_config() -> dict:
     
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            cfg = json.load(f)
+            if not cfg.get("admin_password_hash"):
+                cfg["admin_salt"] = DEFAULT_ADMIN_SALT
+                cfg["admin_password_hash"] = DEFAULT_ADMIN_HASH
+            return cfg
     except Exception:
-        salt_hex, hash_hex = hash_password("admin123")
         return {
             "server_port": 8080,
-            "admin_salt": salt_hex,
-            "admin_password_hash": hash_hex,
-            "session_secret": secrets.token_hex(32),
+            "admin_salt": DEFAULT_ADMIN_SALT,
+            "admin_password_hash": DEFAULT_ADMIN_HASH,
+            "session_secret": DEFAULT_SESSION_SECRET,
             "session_duration_hours": 24,
             "gdrive": {"enabled": False, "service_account_json": "service_account.json", "parent_folder_id": ""}
         }

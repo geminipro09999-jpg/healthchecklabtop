@@ -1157,7 +1157,7 @@ if ($AutoUpload -and $ServerUrl) {
             Write-Host "================================================================" -ForegroundColor Green
             Write-Host " Laptop ID    : $($Response.laptop.id)" -ForegroundColor White
             Write-Host " Company      : $($Response.laptop.company_name)" -ForegroundColor White
-            Write-Host " Customer     : $($Response.laptop.customer_name)" -ForegroundColor White
+            Write-Host " User Name    : $($Response.laptop.customer_name)" -ForegroundColor White
             if ($Response.gdrive -and $Response.gdrive.success) {
                 Write-Host " Google Drive : Synced successfully!" -ForegroundColor Green
             }
