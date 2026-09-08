@@ -20,26 +20,48 @@ echo ================================================================
 echo.
 
 set comp=UNICOMTIC
-set /p comp="Enter Company Name [Press Enter for 'UNICOMTIC']: "
+set user_name=%USERNAME%
+set user_phone=
+set srv=https://healthchecklabtop.vercel.app
+
+if not "%~1"=="" set comp=%~1
+if not "%~2"=="" set user_name=%~2
+if not "%~3"=="" set user_phone=%~3
+if not "%~4"=="" set srv=%~4
+
+if "%~1"=="" (
+    echo [*] Default Company : %comp%
+    echo [*] Default User    : %user_name%
+    echo [*] Server          : %srv%
+    echo.
+    echo [*] Auto-Scan starting in 3 seconds... (Press C to customize info, or any key to start now)
+    choice /c CY /n /t 3 /d Y >nul 2>&1
+    if errorlevel 2 goto start_scan
+    if errorlevel 1 goto prompt_inputs
+)
+goto start_scan
+
+:prompt_inputs
+echo.
+set /p comp="Enter Company Name [Press Enter for '%comp%']: "
 if "%comp%"=="" set comp=UNICOMTIC
 
-set user_name=
 set /p user_name="Enter User Name [Press Enter for '%USERNAME%']: "
 if "%user_name%"=="" set user_name=%USERNAME%
 
-set user_phone=
 set /p user_phone="Enter Customer Phone [Optional]: "
 
-set srv=https://healthchecklabtop.vercel.app
 set /p srv="Enter Dashboard Server URL [Press Enter for 'https://healthchecklabtop.vercel.app']: "
 if "%srv%"=="" set srv=https://healthchecklabtop.vercel.app
 
+:start_scan
 echo.
 echo ================================================================
 echo  Target Company   : %comp%
 echo  User Name        : %user_name%
 if not "%user_phone%"=="" echo  Customer Phone  : %user_phone%
 echo  Dashboard Server : %srv%
+echo  Auto-Upload      : ENABLED (Immediate Cloud & Drive Sync)
 echo ================================================================
 echo.
 

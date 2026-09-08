@@ -409,7 +409,7 @@ def delete_laptop_from_drive(laptop_data: dict) -> dict:
 
     # Also remove from master inventory
     try:
-        remove_laptop_from_master_inventory(laptop_data.get("id"))
+        remove_laptop_from_master_inventory(laptop_data.get("id"), laptop_data.get("device_name"))
     except Exception:
         pass
 
@@ -541,13 +541,18 @@ def update_laptop_in_master_inventory(laptop_data: dict) -> bool:
         logger.error(f"Error updating laptop in master inventory: {e}")
         return False
 
-def remove_laptop_from_master_inventory(laptop_id: str) -> bool:
+def remove_laptop_from_master_inventory(laptop_id: str, device_name: str = None) -> bool:
     """Removes a laptop from laptops_inventory.json in Google Drive."""
-    if not laptop_id:
+    if not laptop_id and not device_name:
         return True
     try:
-        inv = get_master_inventory_from_drive()
-        new_inv = [item for item in inv if item.get("id") != laptop_id]
+        inv = get_master_inventory_from_drive() or []
+        new_inv = [
+            item for item in inv 
+            if item.get("id") != laptop_id and (
+                not device_name or (item.get("device_name") or "").strip().lower() != device_name.strip().lower()
+            )
+        ]
         if len(new_inv) != len(inv):
             return save_master_inventory_to_drive(new_inv)
         return True

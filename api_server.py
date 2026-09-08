@@ -797,31 +797,41 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 return self.send_json({"error": "Admin authorization required to delete laptops"}, 401)
             laptop_id = path.replace("/api/laptops/", "").strip()
             laptop = database.get_laptop(laptop_id)
+
+            # Fallback to Google Drive master inventory if not found in local SQLite
             if not laptop:
-                return self.send_json({"error": "Laptop not found or already deleted"}, 404)
+                try:
+                    inv = gdrive_sync.get_master_inventory_from_drive() or []
+                    for item in inv:
+                        if item.get("id") == laptop_id:
+                            laptop = item
+                            break
+                except Exception:
+                    pass
 
             # 1. Delete associated local HTML/JSON report files if present
-            try:
-                rep_name = laptop.get("report_filename", "")
-                if rep_name:
-                    for ext_file in [rep_name, rep_name.replace(".html", ".json")]:
-                        fpath = os.path.join(BASE_DIR, ext_file)
-                        if os.path.exists(fpath):
-                            os.remove(fpath)
-            except Exception:
-                pass
+            if laptop:
+                try:
+                    rep_name = laptop.get("report_filename", "")
+                    if rep_name:
+                        for ext_file in [rep_name, rep_name.replace(".html", ".json")]:
+                            fpath = os.path.join(BASE_DIR, ext_file)
+                            if os.path.exists(fpath):
+                                os.remove(fpath)
+                except Exception:
+                    pass
 
-            # 2. Delete folder and files from Google Drive
+            # 2. Delete folder, files, and entry from Google Drive
             drive_del_res = None
             try:
-                drive_del_res = gdrive_sync.delete_laptop_from_drive(laptop)
+                target_lap = laptop or {"id": laptop_id}
+                drive_del_res = gdrive_sync.delete_laptop_from_drive(target_lap)
+                gdrive_sync.remove_laptop_from_master_inventory(laptop_id)
             except Exception as e:
-                print(f"Notice: Google Drive deletion skipped: {e}")
+                print(f"Notice: Google Drive deletion: {e}")
 
             # 3. Delete record from SQLite database
-            success = database.delete_laptop(laptop_id)
-            if not success:
-                return self.send_json({"error": "Failed to delete laptop record"}, 500)
+            database.delete_laptop(laptop_id)
 
             return self.send_json({
                 "success": True,
