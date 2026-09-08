@@ -397,7 +397,13 @@ def create_laptop(data: dict):
     ))
     conn.commit()
     conn.close()
-    return get_laptop(lap_id)
+    laptop = get_laptop(lap_id)
+    try:
+        import gdrive_sync
+        gdrive_sync.update_laptop_in_master_inventory(laptop)
+    except Exception as e:
+        print(f"Notice: Master inventory update failed on create: {e}")
+    return laptop
 
 def update_laptop(laptop_id: str, data: dict):
     conn = get_connection()
@@ -441,7 +447,13 @@ def update_laptop(laptop_id: str, data: dict):
     cursor.execute(query, values)
     conn.commit()
     conn.close()
-    return get_laptop(laptop_id)
+    laptop = get_laptop(laptop_id)
+    try:
+        import gdrive_sync
+        gdrive_sync.update_laptop_in_master_inventory(laptop)
+    except Exception as e:
+        print(f"Notice: Master inventory update failed on update: {e}")
+    return laptop
 
 def delete_laptop(laptop_id: str):
     laptop = get_laptop(laptop_id)
