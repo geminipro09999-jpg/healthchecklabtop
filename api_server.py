@@ -612,16 +612,23 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 "report_data": parsed
             })
 
-            # Sync to Google Drive
+            # Sync to Google Drive (Supports disk file or direct raw HTML)
             drive_result = None
-            if saved_report_path and os.path.exists(saved_report_path):
-                drive_res = gdrive_sync.sync_laptop_to_drive(new_laptop, report_path=saved_report_path)
+            try:
+                drive_res = gdrive_sync.sync_laptop_to_drive(
+                    new_laptop,
+                    report_path=saved_report_path,
+                    report_html_content=raw_content,
+                    report_filename=filename
+                )
                 if drive_res.get("success"):
                     d_url = drive_res.get("laptop_folder_url", "")
                     if d_url:
                         database.update_laptop(new_laptop["id"], {"gdrive_folder_url": d_url})
                         new_laptop["gdrive_folder_url"] = d_url
                     drive_result = drive_res
+            except Exception as d_err:
+                print(f"Notice: Google Drive sync skipped: {d_err}")
 
             return self.send_json({
                 "success": True,
@@ -675,10 +682,38 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
             if not self.is_admin():
                 return self.send_json({"error": "Admin authorization required to delete laptops"}, 401)
             laptop_id = path.replace("/api/laptops/", "").strip()
+            laptop = database.get_laptop(laptop_id)
+            if not laptop:
+                return self.send_json({"error": "Laptop not found or already deleted"}, 404)
+
+            # 1. Delete associated local HTML/JSON report files if present
+            try:
+                rep_name = laptop.get("report_filename", "")
+                if rep_name:
+                    for ext_file in [rep_name, rep_name.replace(".html", ".json")]:
+                        fpath = os.path.join(BASE_DIR, ext_file)
+                        if os.path.exists(fpath):
+                            os.remove(fpath)
+            except Exception:
+                pass
+
+            # 2. Delete folder and files from Google Drive
+            drive_del_res = None
+            try:
+                drive_del_res = gdrive_sync.delete_laptop_from_drive(laptop)
+            except Exception as e:
+                print(f"Notice: Google Drive deletion skipped: {e}")
+
+            # 3. Delete record from SQLite database
             success = database.delete_laptop(laptop_id)
             if not success:
-                return self.send_json({"error": "Laptop not found or already deleted"}, 404)
-            return self.send_json({"success": True, "message": f"Laptop {laptop_id} deleted"})
+                return self.send_json({"error": "Failed to delete laptop record"}, 500)
+
+            return self.send_json({
+                "success": True,
+                "message": f"Laptop {laptop_id} and its Google Drive files deleted successfully",
+                "gdrive": drive_del_res
+            })
 
         return self.send_json({"error": f"DELETE endpoint not found: {path}"}, 404)
 

@@ -204,7 +204,53 @@ def upload_or_update_file(file_path: str, parent_folder_id: str, file_title: str
     logger.error(f"File upload error for {file_name}: {resp.text}")
     return None
 
-def sync_laptop_to_drive(laptop_data: dict, photo_paths: list = None, report_path: str = None) -> dict:
+def upload_or_update_bytes(file_bytes: bytes, file_name: str, parent_folder_id: str, mime_type: str = "text/html; charset=UTF-8") -> dict:
+    """Uploads or updates a file directly from byte content into a specific Drive folder."""
+    token, err = get_access_token()
+    if not token:
+        return None
+
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Check if file already exists
+    query = f"name='{file_name}' and '{parent_folder_id}' in parents and trashed=false"
+    list_url = f"https://www.googleapis.com/drive/v3/files?q={requests.utils.quote(query)}&fields=files(id,name,webViewLink)"
+    r = requests.get(list_url, headers=headers, timeout=10)
+    existing_id = None
+    if r.status_code == 200:
+        files = r.json().get("files", [])
+        if files:
+            existing_id = files[0]["id"]
+
+    metadata = {"name": file_name}
+    if not existing_id:
+        metadata["parents"] = [parent_folder_id]
+
+    files = {
+        "data": ("metadata", json.dumps(metadata), "application/json; charset=UTF-8"),
+        "file": (file_name, file_bytes, mime_type)
+    }
+
+    if existing_id:
+        upload_url = f"https://www.googleapis.com/upload/drive/v3/files/{existing_id}?uploadType=multipart&fields=id,name,webViewLink,webContentLink"
+        resp = requests.patch(upload_url, headers=headers, files=files, timeout=20)
+    else:
+        upload_url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink"
+        resp = requests.post(upload_url, headers=headers, files=files, timeout=20)
+
+    if resp.status_code in (200, 201):
+        res_data = resp.json()
+        if res_data.get("id"):
+            try:
+                perm_url = f"https://www.googleapis.com/drive/v3/files/{res_data['id']}/permissions"
+                requests.post(perm_url, headers=headers, json={"role": "reader", "type": "anyone"}, timeout=10)
+            except Exception:
+                pass
+        return res_data
+    logger.error(f"Byte upload error for {file_name}: {resp.text}")
+    return None
+
+def sync_laptop_to_drive(laptop_data: dict, photo_paths: list = None, report_path: str = None, report_html_content: str = None, report_filename: str = None) -> dict:
     """
     Syncs laptop record, photos, and HTML diagnostic report to the folder structure:
     Root / <Company> / <DeviceName_Serial> /
@@ -247,9 +293,14 @@ def sync_laptop_to_drive(laptop_data: dict, photo_paths: list = None, report_pat
                     if file_res:
                         uploaded_files.append(file_res)
 
-        # 4. Upload HTML report if exists
+        # 4. Upload HTML report if exists on disk
         if report_path and os.path.exists(report_path) and os.path.isfile(report_path):
             rep_res = upload_or_update_file(report_path, laptop_folder_id, os.path.basename(report_path))
+            if rep_res:
+                uploaded_files.append(rep_res)
+        # 4b. Or upload directly from raw HTML string
+        elif report_html_content and report_filename:
+            rep_res = upload_or_update_bytes(report_html_content.encode("utf-8"), report_filename, laptop_folder_id)
             if rep_res:
                 uploaded_files.append(rep_res)
 
@@ -267,3 +318,53 @@ def sync_laptop_to_drive(laptop_data: dict, photo_paths: list = None, report_pat
             "success": False,
             "error": str(e)
         }
+
+def delete_laptop_from_drive(laptop_data: dict) -> dict:
+    """
+    Deletes the laptop's dedicated folder from Google Drive when a laptop record is deleted.
+    Looks up Root / <Company> / <DeviceName_Serial> or parses laptop_folder_url.
+    """
+    token, err = get_access_token()
+    if not token:
+        return {"success": False, "error": err}
+
+    cfg = load_config().get("gdrive", {})
+    parent_id = cfg.get("parent_folder_id") or None
+    company_name = laptop_data.get("company_name") or laptop_data.get("company") or "General"
+    device_name = laptop_data.get("device_name", "Laptop").strip()
+    serial_no = laptop_data.get("serial_number", "NoSerial").strip()
+    laptop_folder_name = f"{device_name}_{serial_no}"
+
+    headers = {"Authorization": f"Bearer {token}"}
+    target_folder_id = None
+
+    # Try extracting ID from gdrive_folder_url if stored
+    folder_url = laptop_data.get("gdrive_folder_url", "")
+    if "folders/" in folder_url:
+        target_folder_id = folder_url.split("folders/")[-1].split("?")[0].strip()
+
+    try:
+        if not target_folder_id:
+            # Search by path: parent -> company -> laptop
+            company_folder_id, _ = find_or_create_folder(company_name, parent_id)
+            query = f"mimeType='application/vnd.google-apps.folder' and name='{laptop_folder_name}' and '{company_folder_id}' in parents and trashed=false"
+            list_url = f"https://www.googleapis.com/drive/v3/files?q={requests.utils.quote(query)}&fields=files(id)"
+            r = requests.get(list_url, headers=headers, timeout=10)
+            if r.status_code == 200:
+                files = r.json().get("files", [])
+                if files:
+                    target_folder_id = files[0]["id"]
+
+        if target_folder_id:
+            del_url = f"https://www.googleapis.com/drive/v3/files/{target_folder_id}"
+            del_resp = requests.delete(del_url, headers=headers, timeout=15)
+            if del_resp.status_code in (200, 204):
+                return {"success": True, "deleted_folder_id": target_folder_id}
+            else:
+                return {"success": False, "error": f"Drive API returned HTTP {del_resp.status_code}: {del_resp.text}"}
+
+        return {"success": True, "message": "No folder found on Drive to delete"}
+    except Exception as e:
+        logger.error(f"Error deleting laptop folder from Google Drive: {e}")
+        return {"success": False, "error": str(e)}
+
