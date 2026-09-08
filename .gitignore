@@ -1,0 +1,13 @@
+# Sensitive Credentials & Auth Tokens
+token.json
+client_secret.json
+service_account.json
+
+# Environment / Local Database
+__pycache__/
+*.pyc
+laptops.db
+*.log
+
+# Local temporary uploads
+laptop_images/

@@ -1,0 +1,13 @@
+{
+  "server_port": 8080,
+  "admin_salt": "970822925df90d7897feb0dec7976197",
+  "admin_password_hash": "bf1683a9483b52b3f5f44b74affe52d3daa675923d6f62fe30f1da86ae89e94a",
+  "session_secret": "cae1b803daaaab6ce3720f3cced8e22e1a93778f3b0ffc971e87550acec51d5d",
+  "session_duration_hours": 24,
+  "gdrive": {
+    "enabled": true,
+    "service_account_json": "service_account.json",
+    "parent_folder_id": "1cfYrNewvM1tmCumcV5pKEsq0fPvq-fGZ",
+    "folder_name_prefix": "LaptopHealth_"
+  }
+}

@@ -1,0 +1,99 @@
+﻿{
+    "id":  "UNICOMTIC32_20260908_093553",
+    "deviceName":  "UNICOMTIC32",
+    "manufacturer":  "Micro-Star International Co., Ltd.",
+    "model":  "MS-7D48",
+    "serialNumber":  "Default string",
+    "systemType":  "Desktop",
+    "os":  "Microsoft Windows 11 Pro (Build 26100, 64-bit)",
+    "cpu":  "12th Gen Intel(R) Core(TM) i3-12100 (4 C / 8 T @ 3.3 GHz)",
+    "cpuLoad":  42,
+    "ramTotalGB":  15.79,
+    "ramUsedGB":  12.88,
+    "ramUsagePercent":  81.6,
+    "ramSlots":  "1 of 2 slots populated",
+    "ramSpeed":  "2667 MHz",
+    "gpu":  "Intel(R) UHD Graphics 730 + NVIDIA GeForce GT 710",
+    "disks":  "ADATA SU650 (223.6 GB SSD), Dahua E900 M.2 2280 NVMe 512GB SSD (476.9 GB SSD)",
+    "batteryStatus":  "Not Installed (Desktop PC)",
+    "batteryHealthPercent":  "N/A",
+    "batteryCharge":  "N/A",
+    "hasBattery":  false,
+    "healthScore":  65,
+    "verdict":  "MINOR WARNINGS / UPGRADES RECOMMENDED",
+    "failingHardwares":  [
+
+                         ],
+    "warnings":  [
+                     "Moderate to high memory load (81.6%).",
+                     "Drive C: has critically low free space: 3.4% (15.8 GB free).",
+                     "Drive F: has critically low free space: 1.6% (0.1 GB free)."
+                 ],
+    "checklist":  [
+                      {
+                          "Component":  "Processor (CPU)",
+                          "Icon":  "\u0026#9881;",
+                          "Summary":  "12th Gen Intel(R) Core(TM) i3-12100 (4 C / 8 T @ 3.3 GHz)",
+                          "Status":  "PASS",
+                          "Detail":  "Operating Normally (42% Load)"
+                      },
+                      {
+                          "Component":  "Memory (RAM)",
+                          "Icon":  "\u0026#129504;",
+                          "Summary":  "15.79 GB Installed (1 of 2 slots populated, 2667 MHz)",
+                          "Status":  "WARN",
+                          "Detail":  "High RAM Usage (81.6%)"
+                      },
+                      {
+                          "Component":  "Storage (SSD/HDD)",
+                          "Icon":  "\u0026#128190;",
+                          "Summary":  "2 Physical Drive(s) Detected",
+                          "Status":  "WARN",
+                          "Detail":  "2 Partition(s) Low Free Space"
+                      },
+                      {
+                          "Component":  "Graphics (GPU)",
+                          "Icon":  "\u0026#127918;",
+                          "Summary":  "Intel(R) UHD Graphics 730 + NVIDIA GeForce GT 710",
+                          "Status":  "PASS",
+                          "Detail":  "2 Active Display Adapter(s)"
+                      },
+                      {
+                          "Component":  "Battery",
+                          "Icon":  "\u0026#128267;",
+                          "Summary":  "Desktop PC (Direct AC Power)",
+                          "Status":  "PASS",
+                          "Detail":  "No Battery Required"
+                      },
+                      {
+                          "Component":  "Audio / Sound",
+                          "Icon":  "\u0026#128266;",
+                          "Summary":  "NVIDIA High Definition Audio, Realtek High Definition Audio",
+                          "Status":  "PASS",
+                          "Detail":  "2 Sound Device(s) Active"
+                      },
+                      {
+                          "Component":  "Network (LAN / Wi-Fi)",
+                          "Icon":  "\u0026#127760;",
+                          "Summary":  "LAN: Present | Wi-Fi: None",
+                          "Status":  "WARN",
+                          "Detail":  "Internet: Offline / No Connection"
+                      },
+                      {
+                          "Component":  "Bluetooth",
+                          "Icon":  "\u0026#128246;",
+                          "Summary":  "ANSTY-B17 Avrcp Transport",
+                          "Status":  "PASS",
+                          "Detail":  "Working / Ready"
+                      },
+                      {
+                          "Component":  "Camera / Webcam",
+                          "Icon":  "\u0026#128247;",
+                          "Summary":  "No Integrated Webcam Detected",
+                          "Status":  "INFO",
+                          "Detail":  "Desktop / No Webcam"
+                      }
+                  ],
+    "scannedAt":  "2026-09-08 09:35:53",
+    "reportFileName":  "HealthReport_UNICOMTIC32_20260908_093553.html"
+}

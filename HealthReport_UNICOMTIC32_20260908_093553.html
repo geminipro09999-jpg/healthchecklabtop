@@ -1,0 +1,330 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hardware Health & Specs - UNICOMTIC32</title>
+    <style>
+        :root {
+            --bg: #0b1329;
+            --surface: #152238;
+            --surface-card: #1c2e4a;
+            --border: #2a3f63;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --green: #10b981;
+            --amber: #f59e0b;
+            --red: #ef4444;
+            --font: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background-color: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.5; padding: 24px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+        .header-title h1 { font-size: 1.8rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .header-title p { color: var(--text-muted); font-size: 0.9rem; margin-top: 4px; }
+        .btn { background: var(--surface-card); border: 1px solid var(--border); color: var(--text); padding: 9px 18px; border-radius: 6px; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
+        .btn:hover { background: var(--accent); color: #0b1329; border-color: var(--accent); }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25); }
+        .kpi-title { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 8px; }
+        .kpi-value { font-size: 1.55rem; font-weight: 700; color: var(--text); }
+        .kpi-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; }
+        .score-hero { grid-column: span 2; background: linear-gradient(135deg, #152238 0%, #1e3a5f 100%); border-color: #3b82f6; display: flex; align-items: center; justify-content: space-between; }
+        @media (max-width: 768px) { .score-hero { grid-column: span 1; } }
+        .score-number { font-size: 3rem; font-weight: 800; color: #f59e0b; line-height: 1; }
+        .score-badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; font-size: 0.82rem; font-weight: 600; margin-top: 8px; }
+        .badge-healthy { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }
+        .badge-warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; }
+        .badge-critical { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
+        .alert-box { border-radius: 8px; padding: 16px 20px; margin-bottom: 24px; border-left: 5px solid; font-size: 0.92rem; }
+        .alert-failing { background: rgba(239, 68, 68, 0.15); border-color: var(--red); color: #fecaca; }
+        .alert-failing strong { color: #f87171; font-size: 1.05rem; }
+        .alert-healthy { background: rgba(16, 185, 129, 0.12); border-color: var(--green); color: #a7f3d0; }
+        .alert-warnings { background: rgba(245, 158, 11, 0.12); border-color: var(--amber); color: #fde68a; }
+        .alert-box ul { margin-left: 24px; margin-top: 8px; }
+        .section-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 24px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2); }
+        .section-header { padding: 14px 20px; background: var(--surface-card); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+        .section-header h2 { font-size: 1.05rem; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+        .section-body { padding: 20px; }
+        .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 24px; }
+        .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.9rem; }
+        .detail-label { color: var(--text-muted); }
+        .detail-value { font-weight: 500; color: var(--text); text-align: right; max-width: 65%; word-break: break-word; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: left; }
+        th { background: rgba(0, 0, 0, 0.25); color: var(--text-muted); padding: 10px 12px; font-weight: 600; border-bottom: 1px solid var(--border); }
+        td { padding: 10px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        tr:hover td { background: rgba(255, 255, 255, 0.02); }
+        .status-badge { display: inline-block; padding: 3px 9px; border-radius: 6px; font-size: 0.78rem; font-weight: 700; }
+        .status-pass { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }
+        .status-warn { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; }
+        .status-fail { background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid #ef4444; }
+        .status-info { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid #0284c7; }
+        .progress-bar-bg { background: rgba(255, 255, 255, 0.1); border-radius: 9999px; height: 8px; overflow: hidden; width: 100%; margin-top: 6px; }
+        .progress-bar-fill { height: 100%; border-radius: 9999px; }
+        footer { margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--border); text-align: center; font-size: 0.82rem; color: var(--text-muted); }
+        @media print { body { background: #fff !important; color: #000 !important; } .section-card, .kpi-card { background: #fff !important; color: #000 !important; border: 1px solid #ccc !important; box-shadow: none !important; } .detail-label, .kpi-title, .kpi-sub, th { color: #555 !important; } .detail-value, .kpi-value, .header-title h1 { color: #000 !important; } .btn { display: none !important; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <div class="header-title">
+            <h1>&#128187; UNICOMTIC32 &bull; Hardware Health & Diagnostic Report</h1>
+            <p>System Type: Desktop | Generated: 2026-09-08 09:35:53 | User: UNICOMTIC32\unico | Admin Rights: Yes</p>
+        </div>
+        <div>
+            <button class="btn" onclick="window.print()">&#128424; Print / Save PDF</button>
+        </div>
+    </header>
+    <div class="kpi-grid">
+        <div class="kpi-card score-hero">
+            <div>
+                <div class="kpi-title">Overall Hardware Score</div>
+                <div class="score-badge badge-warning">MINOR WARNINGS / UPGRADES RECOMMENDED</div>
+                <div class="kpi-sub">Automated component diagnostic test</div>
+            </div>
+            <div class="score-number">65<span style="font-size: 1.4rem;">/100</span></div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Processor (CPU)</div>
+            <div class="kpi-value">42%</div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width: 42%; background: var(--green);"></div>
+            </div>
+            <div class="kpi-sub">4 Cores / 8 Threads @ 3.3 GHz</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Memory (RAM)</div>
+            <div class="kpi-value">15.79 GB</div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width: 81.6%; background: var(--amber);"></div>
+            </div>
+            <div class="kpi-sub">12.88 GB Used (81.6%) | 1 of 2 slots populated</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Storage (Disks)</div>
+            <div class="kpi-value">2 Drive(s)</div>
+            <div class="kpi-sub" style="color: var(--green); font-weight: 600;">2 Partition(s) Low Free Space</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Battery / Power</div>
+            <div class="kpi-value">AC Power</div>
+            <div class="kpi-sub">Desktop PC</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Hardware Issues</div>
+            <div class="kpi-value" style="color: var(--green);">0 Fault(s)</div>
+            <div class="kpi-sub">All Hardware Operational</div>
+        </div>
+    </div>
+    <div class="alert-box alert-healthy">
+        <strong>&#9989; 100% Operational:</strong> No hardware failures, missing drivers, or defective components detected. All subsystems are functioning properly.
+    </div>
+    <div class="alert-box alert-warnings">
+        <strong>&#9889; Performance & Capacity Warnings (3):</strong><ul>
+            <li>Moderate to high memory load (81.6%).</li>
+            <li>Drive C: has critically low free space: 3.4% (15.8 GB free).</li>
+            <li>Drive F: has critically low free space: 1.6% (0.1 GB free).</li>
+        </ul></div>
+    <div class="section-card">
+        <div class="section-header"><h2>&#128736; Hardware Operational Status & Diagnostic Checklist</h2><span style="font-size: 0.85rem; color: var(--text-muted);">Quick Pass/Fail Matrix</span></div>
+        <div class="section-body">
+            <table>
+                <thead><tr><th>Subsystem</th><th>Component Summary</th><th>Status</th><th>Diagnostic Detail</th></tr></thead>
+                <tbody>
+                <tr>
+                    <td><strong>&#9881; Processor (CPU)</strong></td>
+                    <td>12th Gen Intel(R) Core(TM) i3-12100 (4 C / 8 T @ 3.3 GHz)</td>
+                    <td><span class="status-badge status-pass">PASS</span></td>
+                    <td>Operating Normally (42% Load)</td>
+                </tr>
+                <tr>
+                    <td><strong>&#129504; Memory (RAM)</strong></td>
+                    <td>15.79 GB Installed (1 of 2 slots populated, 2667 MHz)</td>
+                    <td><span class="status-badge status-warn">WARN</span></td>
+                    <td>High RAM Usage (81.6%)</td>
+                </tr>
+                <tr>
+                    <td><strong>&#128190; Storage (SSD/HDD)</strong></td>
+                    <td>2 Physical Drive(s) Detected</td>
+                    <td><span class="status-badge status-warn">WARN</span></td>
+                    <td>2 Partition(s) Low Free Space</td>
+                </tr>
+                <tr>
+                    <td><strong>&#127918; Graphics (GPU)</strong></td>
+                    <td>Intel(R) UHD Graphics 730 + NVIDIA GeForce GT 710</td>
+                    <td><span class="status-badge status-pass">PASS</span></td>
+                    <td>2 Active Display Adapter(s)</td>
+                </tr>
+                <tr>
+                    <td><strong>&#128267; Battery</strong></td>
+                    <td>Desktop PC (Direct AC Power)</td>
+                    <td><span class="status-badge status-pass">PASS</span></td>
+                    <td>No Battery Required</td>
+                </tr>
+                <tr>
+                    <td><strong>&#128266; Audio / Sound</strong></td>
+                    <td>NVIDIA High Definition Audio, Realtek High Definition Audio</td>
+                    <td><span class="status-badge status-pass">PASS</span></td>
+                    <td>2 Sound Device(s) Active</td>
+                </tr>
+                <tr>
+                    <td><strong>&#127760; Network (LAN / Wi-Fi)</strong></td>
+                    <td>LAN: Present | Wi-Fi: None</td>
+                    <td><span class="status-badge status-warn">WARN</span></td>
+                    <td>Internet: Offline / No Connection</td>
+                </tr>
+                <tr>
+                    <td><strong>&#128246; Bluetooth</strong></td>
+                    <td>ANSTY-B17 Avrcp Transport</td>
+                    <td><span class="status-badge status-pass">PASS</span></td>
+                    <td>Working / Ready</td>
+                </tr>
+                <tr>
+                    <td><strong>&#128247; Camera / Webcam</strong></td>
+                    <td>No Integrated Webcam Detected</td>
+                    <td><span class="status-badge status-info">INFO</span></td>
+                    <td>Desktop / No Webcam</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="section-card">
+        <div class="section-header"><h2>&#9881; Processor (CPU) Specifications</h2></div>
+        <div class="section-body"><div class="details-grid">
+            <div class="detail-row"><span class="detail-label">Processor Model</span><span class="detail-value" style="font-weight: 700; color: var(--accent);">12th Gen Intel(R) Core(TM) i3-12100</span></div>
+            <div class="detail-row"><span class="detail-label">Physical Cores</span><span class="detail-value">4 Cores</span></div>
+            <div class="detail-row"><span class="detail-label">Logical Processors (Threads)</span><span class="detail-value">8 Threads</span></div>
+            <div class="detail-row"><span class="detail-label">Base / Max Frequency</span><span class="detail-value">3.3 GHz</span></div>
+            <div class="detail-row"><span class="detail-label">L3 Cache Memory</span><span class="detail-value">12 MB</span></div>
+            <div class="detail-row"><span class="detail-label">Socket Designation</span><span class="detail-value">U3E1</span></div>
+            <div class="detail-row"><span class="detail-label">Architecture</span><span class="detail-value">64-bit</span></div>
+            <div class="detail-row"><span class="detail-label">Current Load</span><span class="detail-value">42%</span></div>
+        </div></div>
+    </div>
+    <div class="section-card">
+        <div class="section-header"><h2>&#129504; Memory (RAM) Specifications & Slot Details</h2><span style="font-size: 0.85rem; color: var(--text-muted);">1 of 2 slots populated</span></div>
+        <div class="section-body">
+            <div class="details-grid" style="margin-bottom: 20px;">
+                <div class="detail-row"><span class="detail-label">Total Installed RAM</span><span class="detail-value" style="font-weight: 700; color: var(--accent);">15.79 GB</span></div>
+                <div class="detail-row"><span class="detail-label">Motherboard RAM Slots</span><span class="detail-value">2 Total (1 in use, 1 free for upgrade)</span></div>
+                <div class="detail-row"><span class="detail-label">Memory Clock Speed</span><span class="detail-value">2667 MHz</span></div>
+                <div class="detail-row"><span class="detail-label">Current Memory Usage</span><span class="detail-value">12.88 GB / 15.79 GB (81.6%)</span></div>
+            </div>
+            <h3 style="font-size: 0.95rem; margin-bottom: 10px; color: var(--text-muted);">Installed RAM Modules</h3>
+            <table>
+                <thead><tr><th>Slot Locator</th><th>Capacity</th><th>Speed</th><th>Manufacturer</th><th>Part Number</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Controller1-DIMMB1</strong></td><td>16 GB</td><td>2667 MHz</td><td>Netac Technology Co Ltd</td><td><code></code></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="section-card">
+        <div class="section-header"><h2>&#127918; Graphics (GPU) & Video Display Specs</h2></div>
+        <div class="section-body">
+            <table>
+                <thead><tr><th>Graphics Card Name</th><th>VRAM / Memory</th><th>Driver Version</th><th>Display Mode / Resolution</th><th>Status</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Intel(R) UHD Graphics 730</strong></td><td>2 GB</td><td>32.0.101.7088</td><td>Connected</td><td><span class="status-badge status-pass">OK</span></td></tr>
+                    <tr><td><strong>NVIDIA GeForce GT 710</strong></td><td>4.0 GB</td><td>30.0.14.7514</td><td>1920 x 1080 x 4294967296 colors</td><td><span class="status-badge status-pass">OK</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="section-card">
+        <div class="section-header"><h2>&#128190; Storage Disks & Partitions Specifications</h2></div>
+        <div class="section-body">
+            <h3 style="font-size: 0.95rem; margin-bottom: 10px; color: var(--text-muted);">Physical Drives (NVMe / SSD / HDD)</h3>
+            <table>
+                <thead><tr><th>Drive Model</th><th>Type</th><th>Interface (Bus)</th><th>Capacity</th><th>Health Status</th><th>Operational Status</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>ADATA SU650</strong></td><td>SSD</td><td>SATA</td><td>223.6 GB</td><td><span style="color: var(--green); font-weight: 600;">Healthy</span></td><td>OK</td></tr>
+                    <tr><td><strong>Dahua E900 M.2 2280 NVMe 512GB SSD</strong></td><td>SSD</td><td>NVMe</td><td>476.9 GB</td><td><span style="color: var(--green); font-weight: 600;">Healthy</span></td><td>OK</td></tr>
+                </tbody>
+            </table>
+            <h3 style="font-size: 0.95rem; margin: 24px 0 10px 0; color: var(--text-muted);">Logical Partitions & Free Space</h3>
+            <table>
+                <thead><tr><th>Drive</th><th>Label</th><th>File System</th><th>Total Size</th><th>Used</th><th>Free</th><th>Free %</th><th>Condition</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><strong>C:</strong></td>
+                        <td>Local Disk</td>
+                        <td>NTFS</td>
+                        <td>469.9 GB</td>
+                        <td>454.1 GB</td>
+                        <td>15.8 GB</td>
+                        <td><div style="display: flex; align-items: center; gap: 8px;"><span>3.4%</span><div class="progress-bar-bg" style="width: 80px; margin: 0;"><div class="progress-bar-fill" style="width: 3.4%; background: var(--red);"></div></div></div></td>
+                        <td><span style="color: var(--red); font-weight: 600;">Critical Low</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>F:</strong></td>
+                        <td>ISO</td>
+                        <td>NTFS</td>
+                        <td>6.2 GB</td>
+                        <td>6.1 GB</td>
+                        <td>0.1 GB</td>
+                        <td><div style="display: flex; align-items: center; gap: 8px;"><span>1.6%</span><div class="progress-bar-bg" style="width: 80px; margin: 0;"><div class="progress-bar-fill" style="width: 1.6%; background: var(--red);"></div></div></div></td>
+                        <td><span style="color: var(--red); font-weight: 600;">Critical Low</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>K:</strong></td>
+                        <td>New Volume</td>
+                        <td>NTFS</td>
+                        <td>223.6 GB</td>
+                        <td>162.2 GB</td>
+                        <td>61.4 GB</td>
+                        <td><div style="display: flex; align-items: center; gap: 8px;"><span>27.5%</span><div class="progress-bar-bg" style="width: 80px; margin: 0;"><div class="progress-bar-fill" style="width: 27.5%; background: var(--green);"></div></div></div></td>
+                        <td><span style="color: var(--green); font-weight: 600;">Good</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="section-card">
+        <div class="section-header"><h2>&#127760; Network, Audio & Multimedia Hardware</h2></div>
+        <div class="section-body">
+            <h3 style="font-size: 0.95rem; margin-bottom: 10px; color: var(--text-muted);">Network Adapters</h3>
+            <table>
+                <thead><tr><th>Adapter Name</th><th>Hardware Type</th><th>Device Description</th><th>Status</th><th>Link Speed</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Ethernet</strong></td><td>Ethernet (LAN)</td><td>Realtek PCIe GbE Family Controller</td><td><span class="status-badge status-pass">Up</span></td><td>1 Gbps</td></tr>
+                    <tr><td><strong>Bluetooth Network Connection 2</strong></td><td>Bluetooth PAN</td><td>Bluetooth Device (Personal Area Network) #2</td><td><span class="status-badge status-warn">Disconnected</span></td><td>3 Mbps</td></tr>
+                    <tr><td><strong>OpenVPN Wintun</strong></td><td>Other</td><td>Wintun Userspace Tunnel</td><td><span class="status-badge status-warn">Disconnected</span></td><td>100 Gbps</td></tr>
+                    <tr><td><strong>Panda</strong></td><td>Other</td><td>TAP-Windows Adapter V9</td><td><span class="status-badge status-warn">Disconnected</span></td><td>1 Gbps</td></tr>
+                </tbody>
+            </table>
+            <h3 style="font-size: 0.95rem; margin: 20px 0 10px 0; color: var(--text-muted);">Audio & Camera Devices</h3>
+            <div class="details-grid">
+                <div class="detail-row"><span class="detail-label">Sound Controller(s)</span><span class="detail-value">NVIDIA High Definition Audio, Realtek High Definition Audio</span></div>
+                <div class="detail-row"><span class="detail-label">Webcam / Camera</span><span class="detail-value">No Integrated Webcam Detected</span></div>
+                <div class="detail-row"><span class="detail-label">Bluetooth Device</span><span class="detail-value">ANSTY-B17 Avrcp Transport</span></div>
+                <div class="detail-row"><span class="detail-label">Internet Connection</span><span class="detail-value" style="color: var(--red);">Offline / No Connection</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="section-card">
+        <div class="section-header"><h2>&#128187; Motherboard, BIOS & System Specifications</h2></div>
+        <div class="section-body"><div class="details-grid">
+            <div class="detail-row"><span class="detail-label">Device Name</span><span class="detail-value" style="font-weight: 700; color: var(--accent);">UNICOMTIC32</span></div>
+            <div class="detail-row"><span class="detail-label">Manufacturer & Model</span><span class="detail-value">Micro-Star International Co., Ltd. MS-7D48</span></div>
+            <div class="detail-row"><span class="detail-label">Motherboard Model</span><span class="detail-value">Micro-Star International Co., Ltd. PRO H610M-E DDR4 (MS-7D48)</span></div>
+            <div class="detail-row"><span class="detail-label">Serial Number</span><span class="detail-value" style="font-family: monospace;">Default string</span></div>
+            <div class="detail-row"><span class="detail-label">BIOS Version & Date</span><span class="detail-value">A.D0 (2023-11-13)</span></div>
+            <div class="detail-row"><span class="detail-label">TPM 2.0 Security Chip</span><span class="detail-value">Enabled (v2.0, 0, 1.38)</span></div>
+            <div class="detail-row"><span class="detail-label">Secure Boot State</span><span class="detail-value">Enabled</span></div>
+            <div class="detail-row"><span class="detail-label">Operating System</span><span class="detail-value">Microsoft Windows 11 Pro (Build 26100, 64-bit)</span></div>
+            <div class="detail-row"><span class="detail-label">OS Installation Date</span><span class="detail-value">2025-07-16</span></div>
+            <div class="detail-row"><span class="detail-label">System Uptime</span><span class="detail-value">0d 1h 2m</span></div>
+        </div></div>
+    </div>
+    <footer>
+        <p>Windows Laptop & PC Hardware Health & Specs Report &bull; <strong>UNICOMTIC32</strong> &bull; Generated on 2026-09-08 09:35:53</p>
+        <p style="margin-top: 4px; font-size: 0.78rem;">Click 'Print / Save PDF' or press <strong>Ctrl + P</strong> to save a permanent copy.</p>
+    </footer>
+</div>
+</body>
+</html>

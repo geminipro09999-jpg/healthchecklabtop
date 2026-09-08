@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Laptop Fleet Health & Service Hub</title>
+    <style>
+        :root {
+            --bg: #0a0f1d;
+            --surface: #131d31;
+            --surface-card: #1a2742;
+            --border: #253759;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --green: #10b981;
+            --amber: #f59e0b;
+            --red: #ef4444;
+            --purple: #a855f7;
+            --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: var(--font);
+            line-height: 1.5;
+            padding: 16px;
+            padding-bottom: 90px;
+        }
+
+        .container { max-width: 1440px; margin: 0 auto; }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 14px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 18px;
+        }
+
+        .header-title h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-title p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: 2px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .auth-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+        .badge-public {
+            background: rgba(56, 189, 248, 0.15);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            color: var(--accent);
+        }
+        .badge-admin {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #34d399;
+        }
+
+        .btn {
+            background: var(--surface-card);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 9px 15px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            text-decoration: none;
+            touch-action: manipulation;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn:hover { background: var(--accent); color: #0b1329; border-color: var(--accent); }
+
+        .btn-primary { background: #2563eb; border-color: #3b82f6; color: #fff; }
+        .btn-primary:hover { background: #1d4ed8; color: #fff; }
+
+        .btn-success { background: rgba(16, 185, 129, 0.2); border-color: var(--green); color: #34d399; }
+        .btn-success:hover { background: var(--green); color: #0b1329; }
+
+        .btn-amber { background: rgba(245, 158, 11, 0.2); border-color: var(--amber); color: #fbbf24; }
+        .btn-amber:hover { background: var(--amber); color: #000; }
+
+        .btn-danger { background: rgba(239, 68, 68, 0.15); border-color: var(--red); color: #f87171; }
+        .btn-danger:hover { background: var(--red); color: #fff; }
+
+        /* Banner info */
+        .info-strip {
+            background: rgba(56, 189, 248, 0.08);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 10px;
+            padding: 10px 16px;
+            margin-bottom: 18px;
+            font-size: 0.82rem;
+            color: #bae6fd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        /* Fleet KPIs */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .kpi-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .kpi-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .kpi-value {
+            font-size: 1.65rem;
+            font-weight: 700;
+            color: var(--text);
+            margin: 4px 0 2px 0;
+        }
+
+        .kpi-sub {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .company-filter-box {
+            min-width: 220px;
+        }
+        .company-filter-box select {
+            width: 100%;
+            background: var(--surface-card);
+            border: 1px solid var(--accent);
+            color: #fff;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            background: var(--surface-card);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 14px 10px 36px;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            outline: none;
+        }
+        .search-box span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+
+        .filters {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            background: var(--surface-card);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .filter-btn.active, .filter-btn:hover {
+            background: var(--accent);
+            color: #0b1329;
+            border-color: var(--accent);
+        }
+
+        /* Laptop Cards Grid */
+        .laptops-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 18px;
+        }
+
+        @media (max-width: 500px) {
+            .laptops-grid { grid-template-columns: 1fr; }
+        }
+
+        .laptop-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25);
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+        .laptop-card:hover {
+            border-color: rgba(56, 189, 248, 0.4);
+        }
+
+        /* Company Badge on Card */
+        .card-company-bar {
+            background: rgba(30, 41, 59, 0.9);
+            padding: 6px 14px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #38bdf8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* Carousel Section */
+        .carousel-container {
+            position: relative;
+            width: 100%;
+            height: 220px;
+            background: #090e1a;
+            overflow: hidden;
+        }
+
+        .carousel-slide {
+            width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            position: absolute; top: 0; left: 0;
+            opacity: 0; transition: opacity 0.3s ease;
+        }
+        .carousel-slide.active { opacity: 1; }
+
+        .carousel-slide img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            cursor: pointer;
+        }
+
+        .no-photo-box {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            width: 100%; height: 100%;
+            color: var(--text-muted);
+            cursor: pointer;
+            text-align: center;
+            padding: 16px;
+            background: linear-gradient(135deg, #10192e 0%, #172440 100%);
+        }
+        .no-photo-box .icon { font-size: 2.6rem; margin-bottom: 6px; }
+
+        .carousel-btn {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.65); color: #fff;
+            border: none; width: 34px; height: 34px; border-radius: 50%;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem; z-index: 5;
+        }
+        .carousel-prev { left: 8px; }
+        .carousel-next { right: 8px; }
+
+        .carousel-badge {
+            position: absolute; bottom: 8px; left: 8px;
+            background: rgba(0, 0, 0, 0.75); color: #fff;
+            padding: 3px 8px; border-radius: 6px;
+            font-size: 0.7rem; font-weight: 600; z-index: 5;
+        }
+
+        .carousel-tag {
+            position: absolute; top: 8px; left: 8px;
+            background: rgba(0, 0, 0, 0.75); color: var(--accent);
+            padding: 3px 8px; border-radius: 6px;
+            font-size: 0.7rem; font-weight: 700; z-index: 5;
+        }
+
+        .carousel-score {
+            position: absolute; top: 8px; right: 8px;
+            padding: 4px 9px; border-radius: 9999px;
+            font-size: 0.78rem; font-weight: 700; z-index: 5;
+        }
+        .badge-healthy { background: rgba(16, 185, 129, 0.95); color: #fff; }
+        .badge-warning { background: rgba(245, 158, 11, 0.95); color: #000; }
+        .badge-critical { background: rgba(239, 68, 68, 0.95); color: #fff; }
+
+        /* Card Content */
+        .card-body {
+            padding: 14px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-title-row {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            margin-bottom: 8px;
+        }
+        .card-device-name { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+        .card-model { color: var(--text-muted); font-size: 0.82rem; }
+        .card-serial {
+            font-family: monospace; font-size: 0.75rem; color: var(--accent);
+            background: rgba(56, 189, 248, 0.1); padding: 1px 6px; border-radius: 4px;
+            display: inline-block; margin-top: 2px;
+        }
+
+        /* Customer Complaint Box */
+        .complaint-box {
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            border-radius: 8px;
+            padding: 9px 11px;
+            margin-bottom: 10px;
+            font-size: 0.8rem;
+        }
+
+        .complaint-header {
+            display: flex; justify-content: space-between; align-items: center;
+            font-weight: 600; margin-bottom: 3px;
+        }
+
+        .status-pill {
+            padding: 2px 7px; border-radius: 4px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+        }
+        .status-in-progress, .status-diagnosing, .status-repairing { background: rgba(245, 158, 11, 0.25); color: #fbbf24; border: 1px solid #f59e0b; }
+        .status-ready, .status-completed { background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid #10b981; }
+        .status-delivered { background: rgba(56, 189, 248, 0.25); color: #38bdf8; border: 1px solid #0284c7; }
+        .status-received { background: rgba(168, 85, 247, 0.25); color: #c084fc; border: 1px solid #a855f7; }
+
+        .complaint-text { color: #fde68a; margin-top: 2px; }
+        .tech-text { color: #cbd5e1; font-size: 0.75rem; margin-top: 3px; border-top: 1px dashed rgba(255, 255, 255, 0.1); padding-top: 3px; }
+
+        /* Specs Grid */
+        .specs-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+            margin-bottom: 10px;
+        }
+        .spec-item {
+            background: var(--surface-card); padding: 5px 8px; border-radius: 6px; font-size: 0.74rem;
+        }
+        .spec-label { color: var(--text-muted); font-size: 0.66rem; text-transform: uppercase; display: block; }
+        .spec-value { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* Actions */
+        .card-actions {
+            margin-top: auto; padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex; gap: 6px; flex-wrap: wrap;
+        }
+        .card-actions .btn {
+            padding: 6px 10px; font-size: 0.78rem; flex: 1; min-width: 65px;
+        }
+
+        /* Floating Bottom Action Bar on Mobile */
+        .mobile-fab-bar {
+            position: fixed; bottom: 0; left: 0; width: 100vw;
+            background: rgba(19, 29, 49, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid var(--border);
+            padding: 10px 16px;
+            display: flex; gap: 10px; z-index: 90;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.4);
+        }
+        .mobile-fab-bar .btn { flex: 1; padding: 11px; font-size: 0.9rem; }
+
+        /* Modals */
+        .modal-backdrop {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px);
+            display: none; align-items: center; justify-content: center;
+            z-index: 100; padding: 12px;
+        }
+        .modal-backdrop.active { display: flex; }
+
+        .modal-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 16px; width: 100%; max-width: 680px;
+            max-height: 92vh; overflow-y: auto;
+            box-shadow: 0 20px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            padding: 14px 18px; background: var(--surface-card);
+            border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+            position: sticky; top: 0; z-index: 10;
+        }
+        .modal-header h2 { font-size: 1.1rem; color: var(--accent); }
+        .modal-close { background: none; border: none; color: var(--text-muted); font-size: 1.6rem; cursor: pointer; }
+
+        .modal-body { padding: 18px; }
+
+        .form-section-title {
+            font-size: 0.85rem; font-weight: 700; color: var(--accent);
+            margin: 14px 0 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 4px; display: flex; align-items: center; gap: 6px;
+        }
+
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 0.74rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%; background: var(--surface-card); border: 1px solid var(--border);
+            color: var(--text); padding: 9px 12px; border-radius: 8px; font-size: 0.86rem; outline: none;
+        }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        @media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
+
+        /* Quick Complaint Pills */
+        .complaint-pills {
+            display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;
+        }
+        .pill-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: var(--text); padding: 5px 10px; border-radius: 20px;
+            font-size: 0.74rem; cursor: pointer; transition: all 0.15s;
+        }
+        .pill-btn:active, .pill-btn:hover {
+            background: var(--amber); color: #000; border-color: var(--amber);
+        }
+
+        /* 3-Photo Slots */
+        .photo-slots-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px; margin-top: 8px;
+        }
+
+        .photo-slot {
+            background: var(--surface-card); border: 2px dashed var(--border);
+            border-radius: 10px; height: 180px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: relative; cursor: pointer; overflow: hidden; padding: 6px; text-align: center;
+        }
+        .photo-slot.has-image { border-style: solid; border-color: var(--green); }
+        .photo-slot img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
+        .photo-slot .slot-title { font-size: 0.76rem; font-weight: 600; color: var(--text); margin-top: 4px; }
+        .photo-slot .slot-desc { font-size: 0.68rem; color: var(--text-muted); }
+        .photo-slot .slot-icon { font-size: 1.8rem; color: var(--accent); margin-bottom: 4px; }
+
+        .photo-slot .delete-btn {
+            position: absolute; top: 6px; right: 6px;
+            background: rgba(239, 68, 68, 0.9); color: #fff; border: none;
+            width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 0.75rem; z-index: 10;
+        }
+
+        /* Lightbox Fullscreen */
+        .lightbox-modal {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.94); display: none; align-items: center; justify-content: center;
+            z-index: 200;
+        }
+        .lightbox-modal.active { display: flex; }
+        .lightbox-modal img { max-width: 94vw; max-height: 86vh; border-radius: 8px; object-fit: contain; }
+        .lightbox-close { position: absolute; top: 16px; right: 20px; color: #fff; font-size: 2rem; cursor: pointer; }
+        .lightbox-caption { position: absolute; bottom: 20px; color: #fff; background: rgba(0,0,0,0.7); padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; }
+
+        /* Empty State */
+        .empty-state {
+            grid-column: 1 / -1; background: var(--surface); border: 2px dashed var(--border);
+            border-radius: 14px; padding: 50px 16px; text-align: center; color: var(--text-muted);
+        }
+        .empty-state .icon { font-size: 3rem; margin-bottom: 8px; }
+
+        /* Report list card */
+        .report-item {
+            background: var(--surface-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- Header -->
+    <header>
+        <div class="header-title">
+            <h1>💻 Laptop Fleet Health & Service Hub</h1>
+            <p>REST API &bull; Company Multi-Tenancy &bull; 3 Photos (Screen, Lid, Tag) &bull; Google Drive Ready</p>
+        </div>
+        <div class="header-actions">
+            <!-- Auth Status Badge -->
+            <div id="authBadge" class="auth-badge badge-public">🌐 Public View</div>
+            
+            <!-- Public Auth Button -->
+            <button id="btnLogin" class="btn btn-amber" onclick="openLoginModal()">🔐 Admin Login</button>
+            
+            <!-- Admin-Only Buttons -->
+            <button id="btnNewJob" class="btn btn-primary admin-only" style="display: none;" onclick="openAddLaptopModal()">📱 ➕ New Customer Job</button>
+            <button id="btnImportScan" class="btn btn-success admin-only" style="display: none;" onclick="openLocalScansModal()">⚡ Import Local Scan</button>
+            <button id="btnChangePwd" class="btn admin-only" style="display: none;" onclick="openChangePwdModal()">🔑 Password</button>
+            <button id="btnLogout" class="btn btn-danger admin-only" style="display: none;" onclick="logoutAdmin()">🚪 Logout</button>
+        </div>
+    </header>
+
+    <!-- Info Strip with Google Drive & Network Info -->
+    <div class="info-strip">
+        <div>
+            🏢 <strong>Multi-Company & Google Drive:</strong> Organize laptops by Client Company. Photos and reports automatically sync to <code>Root &gt; Company &gt; Device_Serial</code> on Google Drive!
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <span id="gdriveStatusBadge" class="auth-badge" style="background: rgba(16,185,129,0.1); border: 1px solid var(--green); color: #34d399; font-size: 0.72rem;">📁 Local Mode</span>
+            <button class="btn btn-amber admin-only" style="padding: 4px 8px; font-size: 0.72rem; display: none;" onclick="checkDriveStatus(true)">☁️ Drive Info</button>
+        </div>
+    </div>
+
+    <!-- Fleet KPIs -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-title">Total Laptops / Jobs</div>
+            <div class="kpi-value" id="kpiTotal">0</div>
+            <div class="kpi-sub">Across all clients</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Active Complaints</div>
+            <div class="kpi-value" id="kpiComplaints" style="color: var(--amber);">0</div>
+            <div class="kpi-sub">Under check / repair</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Ready / Delivered</div>
+            <div class="kpi-value" id="kpiReady" style="color: var(--green);">0</div>
+            <div class="kpi-sub">Tested & ready</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Hardware Warnings</div>
+            <div class="kpi-value" id="kpiFaulty" style="color: var(--red);">0</div>
+            <div class="kpi-sub">Critical / Low space</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Avg Health Score</div>
+            <div class="kpi-value" id="kpiAvgScore" style="color: var(--accent);">0</div>
+            <div class="kpi-sub">Hardware rating</div>
+        </div>
+    </div>
+
+    <!-- Toolbar: Company Filter, Search, Status Filter -->
+    <div class="toolbar">
+        <!-- Company Selector Dropdown -->
+        <div class="company-filter-box">
+            <select id="companySelectFilter" onchange="onCompanyFilterChanged(this.value)">
+                <option value="All">🏢 All Companies / Clients</option>
+            </select>
+        </div>
+
+        <div class="search-box">
+            <span>🔍</span>
+            <input type="text" id="searchInput" placeholder="Search customer, phone, complaint, device name, serial..." oninput="renderLaptops()">
+        </div>
+
+        <div class="filters">
+            <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">All (<span id="countAll">0</span>)</button>
+            <button class="filter-btn" data-filter="service" onclick="setFilter('service')">🔧 In Service (<span id="countService">0</span>)</button>
+            <button class="filter-btn" data-filter="ready" onclick="setFilter('ready')">✅ Ready (<span id="countReady">0</span>)</button>
+            <button class="filter-btn" data-filter="faulty" onclick="setFilter('faulty')">⚠️ Warnings (<span id="countFaulty">0</span>)</button>
+        </div>
+
+        <div>
+            <select class="sort-select" id="sortSelect" onchange="renderLaptops()" style="background: var(--surface-card); border: 1px solid var(--border); color: #fff; padding: 8px 10px; border-radius: 8px; font-size: 0.8rem;">
+                <option value="newest">Newest First</option>
+                <option value="score_desc">Score: High to Low</option>
+                <option value="score_asc">Score: Low to High</option>
+                <option value="name_asc">Name: A-Z</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Laptop Cards Grid -->
+    <div class="laptops-grid" id="laptopsGrid">
+        <!-- Cards loaded dynamically -->
+    </div>
+
+</div>
+
+<!-- FLOATING BOTTOM BAR FOR MOBILE (Admin only) -->
+<div class="mobile-fab-bar admin-only" id="mobileFabBar" style="display: none;">
+    <button class="btn btn-primary" onclick="openAddLaptopModal()">➕ New Customer Job</button>
+    <button class="btn btn-success" onclick="openLocalScansModal()">⚡ Import Scan</button>
+</div>
+
+<!-- =========================================================
+     MODAL: ADMIN LOGIN (Hashed Authentication)
+     ========================================================= -->
+<div class="modal-backdrop" id="loginModal">
+    <div class="modal-card" style="max-width: 420px;">
+        <div class="modal-header">
+            <h2>🔐 Admin Authentication</h2>
+            <button class="modal-close" onclick="closeModal('loginModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px;">
+                Log in as technician/administrator to create jobs, upload photos, edit records, and delete laptops.
+            </p>
+            <form id="loginForm" onsubmit="submitAdminLogin(event)">
+                <div class="form-group">
+                    <label>Admin Password</label>
+                    <input type="password" id="loginPassword" required placeholder="Enter admin password" autocomplete="current-password">
+                </div>
+                <div style="font-size: 0.75rem; color: var(--accent); margin-bottom: 12px;">
+                    ℹ️ Initial default password: <code>admin123</code> (Change anytime)
+                </div>
+                <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button type="button" class="btn" onclick="closeModal('loginModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Login</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     MODAL: CHANGE ADMIN PASSWORD
+     ========================================================= -->
+<div class="modal-backdrop" id="changePwdModal">
+    <div class="modal-card" style="max-width: 420px;">
+        <div class="modal-header">
+            <h2>🔑 Change Admin Password</h2>
+            <button class="modal-close" onclick="closeModal('changePwdModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="changePwdForm" onsubmit="submitChangePassword(event)">
+                <div class="form-group">
+                    <label>Current Password</label>
+                    <input type="password" id="oldPassword" required placeholder="Current password">
+                </div>
+                <div class="form-group">
+                    <label>New Password (Min 4 chars)</label>
+                    <input type="password" id="newPassword" required placeholder="New password">
+                </div>
+                <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
+                    <button type="button" class="btn" onclick="closeModal('changePwdModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     MODAL: IMPORT LOCAL HEALTH REPORT SCAN
+     ========================================================= -->
+<div class="modal-backdrop" id="scansModal">
+    <div class="modal-card" style="max-width: 580px;">
+        <div class="modal-header">
+            <h2>⚡ Import Local Hardware Diagnostics</h2>
+            <button class="modal-close" onclick="closeModal('scansModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px;">
+                Select a diagnostic scan generated on this system or client laptops to instantly create an inventory record.
+            </p>
+            <div id="localScansList">
+                <!-- Scans loaded via API -->
+            </div>
+            <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
+                <button type="button" class="btn" onclick="closeModal('scansModal')">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     MODAL: ADD / EDIT CUSTOMER COMPLAINTS & LAPTOP
+     ========================================================= -->
+<div class="modal-backdrop" id="laptopModal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h2 id="modalTitle">📱 ➕ New Customer Job & Complaints</h2>
+            <button class="modal-close" onclick="closeModal('laptopModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="laptopForm" onsubmit="saveLaptop(event)">
+                <input type="hidden" id="editLaptopId">
+
+                <!-- Section 0: Client Company Multi-Tenancy -->
+                <div class="form-section-title">🏢 Client / Company Information (நிறுவன விபரம்)</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Company / Client Name *</label>
+                        <input type="text" id="formCompanyName" list="companyDatalist" required placeholder="e.g. Virtusa, ABC Tech, Retail Walk-in">
+                        <datalist id="companyDatalist"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Service Status *</label>
+                        <select id="formServiceStatus">
+                            <option value="Received">Received / Intake</option>
+                            <option value="Diagnosing">Diagnosing / Checking</option>
+                            <option value="Repairing">Repairing / Parts Ordered</option>
+                            <option value="Completed">Ready / Completed</option>
+                            <option value="Delivered">Delivered to Client</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Section 1: Customer & Reported Complaints -->
+                <div class="form-section-title">👤 Contact Person & Complaints (வாடிக்கையாளர் புகார்கள்)</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Customer / Contact Person *</label>
+                        <input type="text" id="formCustName" required placeholder="e.g. Ramesh Kumar">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone / WhatsApp</label>
+                        <input type="tel" id="formCustPhone" placeholder="e.g. 0771234567">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Quick Complaint Picker (உடனடி புகார் தேர்வு):</label>
+                    <div class="complaint-pills">
+                        <button type="button" class="pill-btn" onclick="addQuickComplaint('Heating issue / Fan noisy')">🔥 Heating Issue</button>
+                        <button type="button" class="pill-btn" onclick="addQuickComplaint('Battery drains fast / Not charging')">🔋 Battery Issue</button>
+                        <button type="button" class="pill-btn" onclick="addQuickComplaint('Screen flickering / Black screen')">🖥️ Display Issue</button>
+                        <button type="button" class="pill-btn" onclick="addQuickComplaint('Keyboard keys not working')">⌨️ Keyboard Key</button>
+                        <button type="button" class="pill-btn" onclick="addQuickComplaint('No power / Dead PC')">⚡ No Power</button>
+                        <button type="button" class="pill-btn" onclick="addQuickComplaint('Very slow / Windows corrupt')">🐌 Slow / Corrupt</button>
+                        <button type="button" class="pill-btn" onclick="addQuickComplaint('Water / Liquid spill')">💧 Liquid Spill</button>
+                        <button type="button" class="pill-btn" onclick="addQuickComplaint('Physical body / Hinge damage')">🔩 Hinge Broken</button>
+                    </div>
+                    <textarea id="formCustComplaint" rows="2" placeholder="List customer complaints, symptoms, or requested repairs..."></textarea>
+                </div>
+
+                <!-- Section 2: Hardware Specifications -->
+                <div class="form-section-title">⚙️ Laptop Specifications (மடிக்கணினி விபரங்கள்)</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Device Name (Host)</label>
+                        <input type="text" id="formDeviceName" placeholder="e.g. DELL-LATITUDE-5420">
+                    </div>
+                    <div class="form-group">
+                        <label>Manufacturer & Model</label>
+                        <input type="text" id="formModel" placeholder="e.g. Dell Latitude 5420">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Serial Number (Tag)</label>
+                        <input type="text" id="formSerial" placeholder="e.g. PF39A1B2">
+                    </div>
+                    <div class="form-group">
+                        <label>Processor (CPU)</label>
+                        <input type="text" id="formCpu" placeholder="e.g. Intel Core i5-1145G7">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Memory (RAM)</label>
+                        <input type="text" id="formRam" placeholder="e.g. 16 GB DDR4">
+                    </div>
+                    <div class="form-group">
+                        <label>Storage (SSD/HDD)</label>
+                        <input type="text" id="formStorage" placeholder="e.g. 512 GB NVMe SSD">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Graphics (GPU)</label>
+                        <input type="text" id="formGpu" placeholder="e.g. Intel Iris Xe">
+                    </div>
+                    <div class="form-group">
+                        <label>Health Rating</label>
+                        <select id="formOverallStatus">
+                            <option value="Healthy">Healthy (Green)</option>
+                            <option value="Warning">Warning / Minor Issues (Amber)</option>
+                            <option value="Critical">Critical / Broken Hardware (Red)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
+                    <button type="button" class="btn" onclick="closeModal('laptopModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">💾 Save Customer Job</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     MODAL: 3 PHOTOS MANAGER (Screen, Lid, Base Tag)
+     ========================================================= -->
+<div class="modal-backdrop" id="photoModal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h2>📷 Laptop 3-Photo Inspection (Direct Mobile Camera)</h2>
+            <button class="modal-close" onclick="closeModal('photoModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">
+                Required intake photos: <strong>1. Screen &amp; Keyboard</strong>, <strong>2. Top Outer Lid</strong>, <strong>3. Base / Serial Number Tag</strong>.
+                Photos are stored locally and synced to Google Drive in <code>Company / Device_Serial /</code>!
+            </p>
+
+            <input type="hidden" id="photoLaptopId">
+
+            <div class="photo-slots-grid">
+                <!-- Slot 1: Screen & Keyboard -->
+                <div class="photo-slot" id="slot-screen" onclick="triggerPhotoCapture('screen')">
+                    <div class="slot-icon">🖥️</div>
+                    <div class="slot-title">1. Screen &amp; Keyboard</div>
+                    <div class="slot-desc">Capture display defects, cracks, keyboard wear</div>
+                    <input type="file" id="input-photo-screen" accept="image/*" capture="environment" style="display: none;" onchange="handlePhotoSelected(event, 'screen')">
+                </div>
+
+                <!-- Slot 2: Top Lid -->
+                <div class="photo-slot" id="slot-top" onclick="triggerPhotoCapture('top')">
+                    <div class="slot-icon">💻</div>
+                    <div class="slot-title">2. Top Outer Lid</div>
+                    <div class="slot-desc">Capture scratches, dents, logo, hinges</div>
+                    <input type="file" id="input-photo-top" accept="image/*" capture="environment" style="display: none;" onchange="handlePhotoSelected(event, 'top')">
+                </div>
+
+                <!-- Slot 3: Base & Serial Tag -->
+                <div class="photo-slot" id="slot-base" onclick="triggerPhotoCapture('base')">
+                    <div class="slot-icon">🏷️</div>
+                    <div class="slot-title">3. Base &amp; Serial Tag</div>
+                    <div class="slot-desc">Capture bottom screws, model &amp; serial sticker</div>
+                    <input type="file" id="input-photo-base" accept="image/*" capture="environment" style="display: none;" onchange="handlePhotoSelected(event, 'base')">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px;">
+                <button type="button" class="btn" onclick="closeModal('photoModal')">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnSavePhotos" onclick="savePhotosToServer()">☁️ Upload &amp; Sync Photos</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     LIGHTBOX: FULLSCREEN PHOTO VIEWER
+     ========================================================= -->
+<div class="lightbox-modal" id="lightboxModal" onclick="closeLightbox()">
+    <span class="lightbox-close">&times;</span>
+    <img id="lightboxImg" src="" alt="Enlarged Laptop Photo">
+    <div class="lightbox-caption" id="lightboxCaption">Photo Preview</div>
+</div>
+
+<script>
+/* =========================================================
+   GLOBAL STATE & API CONFIGURATION
+   ========================================================= */
+let allLaptops = [];
+let allCompanies = [];
+let currentFilter = 'all';
+let selectedCompany = 'All';
+let isAdmin = false;
+let authToken = localStorage.getItem('laptop_admin_token') || null;
+
+// Temporary cache for photo upload modal
+let currentModalPhotos = { screen: null, top: null, base: null };
+
+/* =========================================================
+   API CLIENT HELPERS
+   ========================================================= */
+function getApiHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (authToken) {
+        headers['Authorization'] = 'Bearer ' + authToken;
+    }
+    return headers;
+}
+
+async function checkAuthStatus() {
+    try {
+        const res = await fetch('/api/auth/status', { headers: getApiHeaders() });
+        if (res.ok) {
+            const data = await res.json();
+            isAdmin = data.isAdmin === true;
+        } else {
+            isAdmin = false;
+        }
+    } catch (e) {
+        // Offline or file:// mode
+        isAdmin = false;
+    }
+    updateAuthUI();
+}
+
+function updateAuthUI() {
+    const badge = document.getElementById('authBadge');
+    const btnLogin = document.getElementById('btnLogin');
+    const adminElements = document.querySelectorAll('.admin-only');
+
+    if (isAdmin) {
+        badge.className = 'auth-badge badge-admin';
+        badge.textContent = '🛡️ Admin Mode';
+        btnLogin.style.display = 'none';
+        adminElements.forEach(el => el.style.display = 'inline-flex');
+        const fab = document.getElementById('mobileFabBar');
+        if (fab) fab.style.display = 'flex';
+    } else {
+        badge.className = 'auth-badge badge-public';
+        badge.textContent = '🌐 Public View';
+        btnLogin.style.display = 'inline-flex';
+        adminElements.forEach(el => el.style.display = 'none');
+        const fab = document.getElementById('mobileFabBar');
+        if (fab) fab.style.display = 'none';
+    }
+}
+
+/* =========================================================
+   AUTHENTICATION MODAL LOGIC
+   ========================================================= */
+function openLoginModal() {
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginModal').classList.add('active');
+    document.getElementById('loginPassword').focus();
+}
+
+async function submitAdminLogin(event) {
+    event.preventDefault();
+    const pwd = document.getElementById('loginPassword').value;
+    try {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pwd })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            authToken = data.token;
+            localStorage.setItem('laptop_admin_token', authToken);
+            isAdmin = true;
+            closeModal('loginModal');
+            updateAuthUI();
+            alert('✅ Logged in successfully as Administrator!');
+            renderLaptops();
+        } else {
+            alert('❌ ' + (data.error || 'Invalid admin password!'));
+        }
+    } catch (err) {
+        alert('Server connection error: ' + err.message);
+    }
+}
+
+async function logoutAdmin() {
+    try {
+        await fetch('/api/auth/logout', { method: 'POST', headers: getApiHeaders() });
+    } catch (e) {}
+    authToken = null;
+    localStorage.removeItem('laptop_admin_token');
+    isAdmin = false;
+    updateAuthUI();
+    renderLaptops();
+}
+
+function openChangePwdModal() {
+    document.getElementById('changePwdForm').reset();
+    document.getElementById('changePwdModal').classList.add('active');
+}
+
+async function submitChangePassword(event) {
+    event.preventDefault();
+    const old_password = document.getElementById('oldPassword').value;
+    const new_password = document.getElementById('newPassword').value;
+    try {
+        const res = await fetch('/api/auth/change-password', {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify({ old_password, new_password })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            alert('✅ Admin password updated successfully!');
+            closeModal('changePwdModal');
+        } else {
+            alert('❌ ' + (data.error || 'Failed to update password'));
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+/* =========================================================
+   COMPANIES & DATA FETCHING
+   ========================================================= */
+async function loadCompanies() {
+    try {
+        const res = await fetch('/api/companies');
+        if (res.ok) {
+            const data = await res.json();
+            allCompanies = data.companies || [];
+            updateCompanyDropdowns();
+        }
+    } catch (e) {
+        console.warn('Could not load companies from API:', e);
+    }
+}
+
+function updateCompanyDropdowns() {
+    const filterSelect = document.getElementById('companySelectFilter');
+    const datalist = document.getElementById('companyDatalist');
+
+    // Populate filter dropdown
+    let opts = '<option value="All">🏢 All Companies / Clients</option>';
+    let datalistOpts = '';
+    allCompanies.forEach(c => {
+        opts += `<option value="${c.name}">${c.name} (${c.laptop_count || 0})</option>`;
+        datalistOpts += `<option value="${c.name}"></option>`;
+    });
+    filterSelect.innerHTML = opts;
+    filterSelect.value = selectedCompany;
+    datalist.innerHTML = datalistOpts;
+}
+
+function onCompanyFilterChanged(val) {
+    selectedCompany = val;
+    fetchLaptops();
+}
+
+async function fetchLaptops() {
+    try {
+        let url = '/api/laptops';
+        const params = [];
+        if (selectedCompany && selectedCompany !== 'All') {
+            params.push('company=' + encodeURIComponent(selectedCompany));
+        }
+        if (params.length > 0) url += '?' + params.join('&');
+
+        const res = await fetch(url);
+        if (res.ok) {
+            const data = await res.json();
+            allLaptops = data.laptops || [];
+            renderLaptops();
+            return;
+        }
+    } catch (e) {
+        console.warn('API fetch failed, falling back to local demo:', e);
+    }
+}
+
+/* =========================================================
+   RENDER DASHBOARD & LAPTOP CARDS
+   ========================================================= */
+function renderLaptops() {
+    const search = document.getElementById('searchInput').value.toLowerCase().trim();
+    const sort = document.getElementById('sortSelect').value;
+
+    let filtered = allLaptops.filter(l => {
+        const matchesSearch = !search || 
+            (l.device_name && l.device_name.toLowerCase().includes(search)) ||
+            (l.model && l.model.toLowerCase().includes(search)) ||
+            (l.serial_number && l.serial_number.toLowerCase().includes(search)) ||
+            (l.customer_name && l.customer_name.toLowerCase().includes(search)) ||
+            (l.customer_phone && l.customer_phone.toLowerCase().includes(search)) ||
+            (l.company_name && l.company_name.toLowerCase().includes(search)) ||
+            (JSON.stringify(l.complaints || []).toLowerCase().includes(search));
+
+        if (!matchesSearch) return false;
+
+        const status = (l.service_status || '').toLowerCase();
+        const hasWarning = l.overall_status === 'Warning' || l.overall_status === 'Critical' || (l.battery_health && l.battery_health < 60);
+
+        if (currentFilter === 'service') return status.includes('diagnos') || status.includes('repair') || status.includes('received');
+        if (currentFilter === 'ready') return status.includes('complete') || status.includes('deliver') || status.includes('ready');
+        if (currentFilter === 'faulty') return hasWarning;
+        return true;
+    });
+
+    // Sort
+    filtered.sort((a, b) => {
+        if (sort === 'score_desc') return (b.battery_health || 0) - (a.battery_health || 0);
+        if (sort === 'score_asc') return (a.battery_health || 0) - (b.battery_health || 0);
+        if (sort === 'name_asc') return (a.device_name || '').localeCompare(b.device_name || '');
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+
+    updateKPIs(allLaptops);
+
+    const grid = document.getElementById('laptopsGrid');
+    if (filtered.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state">
+                <div class="icon">💻</div>
+                <h3>No Laptop Records Found</h3>
+                <p>No laptops matching the current company filter or search term.</p>
+                ${isAdmin ? '<button class="btn btn-primary" style="margin-top: 12px;" onclick="openAddLaptopModal()">📱 ➕ New Customer Job</button>' : ''}
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = filtered.map(lap => createLaptopCardHTML(lap)).join('');
+}
+
+function updateKPIs(laptops) {
+    const total = laptops.length;
+    let complaintsCount = 0, readyCount = 0, faultyCount = 0, totalScore = 0;
+
+    laptops.forEach(l => {
+        const s = l.battery_health || 100;
+        const st = (l.service_status || '').toLowerCase();
+        const hasWarning = l.overall_status === 'Warning' || l.overall_status === 'Critical';
+
+        if (st.includes('diagnos') || st.includes('repair') || st.includes('received')) complaintsCount++;
+        if (st.includes('complete') || st.includes('deliver') || st.includes('ready')) readyCount++;
+        if (hasWarning) faultyCount++;
+        totalScore += s;
+    });
+
+    document.getElementById('kpiTotal').textContent = total;
+    document.getElementById('kpiComplaints').textContent = complaintsCount;
+    document.getElementById('kpiReady').textContent = readyCount;
+    document.getElementById('kpiFaulty').textContent = faultyCount;
+    document.getElementById('kpiAvgScore').textContent = total > 0 ? Math.round(totalScore / total) + '%' : '100%';
+
+    document.getElementById('countAll').textContent = total;
+    document.getElementById('countService').textContent = complaintsCount;
+    document.getElementById('countReady').textContent = readyCount;
+    document.getElementById('countFaulty').textContent = faultyCount;
+}
+
+function createLaptopCardHTML(l) {
+    let badgeClass = 'badge-healthy';
+    if (l.overall_status === 'Critical') badgeClass = 'badge-critical';
+    else if (l.overall_status === 'Warning') badgeClass = 'badge-warning';
+
+    // Photos: check photo_screen, photo_top, photo_base
+    const photos = [];
+    if (l.photo_screen) photos.push({ url: l.photo_screen, title: 'Screen & Keyboard' });
+    if (l.photo_top) photos.push({ url: l.photo_top, title: 'Top Lid' });
+    if (l.photo_base) photos.push({ url: l.photo_base, title: 'Base & Serial Tag' });
+
+    const imageCount = photos.length;
+
+    let carouselHTML = '';
+    if (imageCount > 0) {
+        carouselHTML = `
+            <div class="carousel-container" id="carousel-${l.id}">
+                ${photos.map((img, idx) => `
+                    <div class="carousel-slide ${idx === 0 ? 'active' : ''}" data-idx="${idx}">
+                        <img src="${img.url}" alt="${l.device_name} Photo ${idx + 1}" onclick="openLightbox('${img.url}', '${l.device_name} - ${img.title}')">
+                    </div>
+                `).join('')}
+                ${imageCount > 1 ? `
+                    <button class="carousel-btn carousel-prev" onclick="prevSlide('${l.id}')">&#10094;</button>
+                    <button class="carousel-btn carousel-next" onclick="nextSlide('${l.id}')">&#10095;</button>
+                ` : ''}
+                <div class="carousel-tag">${l.model || 'Laptop'}</div>
+                <div class="carousel-score ${badgeClass}">${l.overall_status || 'Healthy'}</div>
+                <div class="carousel-badge" id="badge-${l.id}">📷 1 / ${imageCount}</div>
+            </div>
+        `;
+    } else {
+        carouselHTML = `
+            <div class="carousel-container" onclick="${isAdmin ? `openPhotoModal('${l.id}')` : ''}">
+                <div class="no-photo-box">
+                    <div class="icon">📷</div>
+                    <strong>No Inspection Photos</strong>
+                    ${isAdmin ? '<span style="font-size: 0.74rem; margin-top: 4px; color: var(--accent);">+ Tap to take 3 Photos (Screen, Lid, Tag)</span>' : '<span style="font-size: 0.74rem; color: var(--text-muted);">Photos pending technician upload</span>'}
+                </div>
+                <div class="carousel-tag">${l.model || 'PC'}</div>
+                <div class="carousel-score ${badgeClass}">${l.overall_status || 'Healthy'}</div>
+                <div class="carousel-badge">📷 0 / 3 photos</div>
+            </div>
+        `;
+    }
+
+    const sStat = l.service_status || 'Received';
+    let sPillClass = 'status-received';
+    const stLow = sStat.toLowerCase();
+    if (stLow.includes('diagnos') || stLow.includes('repair')) sPillClass = 'status-in-progress';
+    else if (stLow.includes('complete') || stLow.includes('ready')) sPillClass = 'status-ready';
+    else if (stLow.includes('deliver')) sPillClass = 'status-delivered';
+
+    let complaintText = '';
+    if (Array.isArray(l.complaints)) {
+        complaintText = l.complaints.join(' &bull; ');
+    } else if (l.complaints) {
+        complaintText = l.complaints;
+    }
+
+    return `
+        <div class="laptop-card" id="card-${l.id}">
+            <div class="card-company-bar">
+                <span>🏢 ${l.company_name || 'Unassigned'}</span>
+                <span style="color: var(--text-muted); font-size: 0.7rem;">ID: ${l.id}</span>
+            </div>
+            ${carouselHTML}
+            <div class="card-body">
+                <div class="card-title-row">
+                    <div>
+                        <div class="card-device-name">${l.device_name}</div>
+                        <div class="card-model">${l.model || 'Standard PC'}</div>
+                        <div class="card-serial">SN: ${l.serial_number || 'N/A'}</div>
+                    </div>
+                </div>
+
+                <div class="complaint-box">
+                    <div class="complaint-header">
+                        <span>👤 ${l.customer_name || 'Customer'} ${l.customer_phone ? '<small style="color: var(--accent); font-family: monospace;">(' + l.customer_phone + ')</small>' : ''}</span>
+                        <span class="status-pill ${sPillClass}">${sStat}</span>
+                    </div>
+                    ${complaintText ? `
+                        <div class="complaint-text">
+                            <strong>⚠️ Complaints / Notes:</strong> ${complaintText}
+                        </div>
+                    ` : ''}
+                </div>
+
+                <div class="specs-grid">
+                    <div class="spec-item"><span class="spec-label">CPU</span><span class="spec-value" title="${l.cpu || ''}">${l.cpu || 'N/A'}</span></div>
+                    <div class="spec-item"><span class="spec-label">RAM</span><span class="spec-value" title="${l.ram || ''}">${l.ram || 'N/A'}</span></div>
+                    <div class="spec-item"><span class="spec-label">Storage</span><span class="spec-value" title="${l.storage || ''}">${l.storage || 'N/A'}</span></div>
+                    <div class="spec-item"><span class="spec-label">GPU</span><span class="spec-value" title="${l.gpu || ''}">${l.gpu || 'N/A'}</span></div>
+                </div>
+
+                <div class="card-actions">
+                    ${l.report_filename ? `
+                        <a href="/${l.report_filename}" target="_blank" class="btn btn-primary" title="Open Full Health Report">📄 Report</a>
+                    ` : ''}
+                    
+                    ${l.gdrive_folder_url ? `
+                        <a href="${l.gdrive_folder_url}" target="_blank" class="btn" style="border-color: #38bdf8; color: #38bdf8;" title="Open in Google Drive">☁️ Drive</a>
+                    ` : ''}
+
+                    <button class="btn btn-amber" onclick="openPhotoModal('${l.id}')">📷 Photos (${imageCount})</button>
+
+                    ${isAdmin ? `
+                        <button class="btn admin-only" onclick="openEditLaptopModal('${l.id}')">✏️ Edit</button>
+                        <button class="btn btn-danger admin-only" style="flex: 0.3;" onclick="deleteLaptop('${l.id}')">🗑️</button>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/* =========================================================
+   CAROUSEL CONTROLS
+   ========================================================= */
+function nextSlide(lapId) {
+    const c = document.getElementById('carousel-' + lapId);
+    if (!c) return;
+    const slides = c.querySelectorAll('.carousel-slide');
+    let cur = Array.from(slides).findIndex(s => s.classList.contains('active'));
+    slides[cur].classList.remove('active');
+    cur = (cur + 1) % slides.length;
+    slides[cur].classList.add('active');
+    const badge = document.getElementById('badge-' + lapId);
+    if (badge) badge.textContent = `📷 ${cur + 1} / ${slides.length}`;
+}
+
+function prevSlide(lapId) {
+    const c = document.getElementById('carousel-' + lapId);
+    if (!c) return;
+    const slides = c.querySelectorAll('.carousel-slide');
+    let cur = Array.from(slides).findIndex(s => s.classList.contains('active'));
+    slides[cur].classList.remove('active');
+    cur = (cur - 1 + slides.length) % slides.length;
+    slides[cur].classList.add('active');
+    const badge = document.getElementById('badge-' + lapId);
+    if (badge) badge.textContent = `📷 ${cur + 1} / ${slides.length}`;
+}
+
+/* =========================================================
+   LIGHTBOX FULLSCREEN VIEWER
+   ========================================================= */
+function openLightbox(url, caption) {
+    document.getElementById('lightboxImg').src = url;
+    document.getElementById('lightboxCaption').textContent = caption || 'Photo Preview';
+    document.getElementById('lightboxModal').classList.add('active');
+}
+
+function closeLightbox() {
+    document.getElementById('lightboxModal').classList.remove('active');
+}
+
+/* =========================================================
+   PHOTO MANAGER & MOBILE CAMERA
+   ========================================================= */
+function openPhotoModal(laptopId) {
+    const lap = allLaptops.find(x => x.id === laptopId);
+    if (!lap) return;
+
+    document.getElementById('photoLaptopId').value = laptopId;
+    currentModalPhotos = {
+        screen: lap.photo_screen || null,
+        top: lap.photo_top || null,
+        base: lap.photo_base || null
+    };
+
+    renderPhotoSlot('screen', currentModalPhotos.screen);
+    renderPhotoSlot('top', currentModalPhotos.top);
+    renderPhotoSlot('base', currentModalPhotos.base);
+
+    // Disable upload button if not admin
+    const saveBtn = document.getElementById('btnSavePhotos');
+    if (saveBtn) saveBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+
+    document.getElementById('photoModal').classList.add('active');
+}
+
+function triggerPhotoCapture(slotName) {
+    if (!isAdmin) return;
+    const input = document.getElementById('input-photo-' + slotName);
+    if (input) input.click();
+}
+
+function handlePhotoSelected(event, slotName) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const b64 = e.target.result;
+        currentModalPhotos[slotName] = b64;
+        renderPhotoSlot(slotName, b64);
+    };
+    reader.readAsDataURL(file);
+}
+
+function renderPhotoSlot(slotName, url) {
+    const slot = document.getElementById('slot-' + slotName);
+    const titles = {
+        screen: '1. Screen & Keyboard',
+        top: '2. Top Outer Lid',
+        base: '3. Base & Serial Tag'
+    };
+
+    if (url) {
+        slot.classList.add('has-image');
+        slot.innerHTML = `
+            <img src="${url}" alt="${titles[slotName]}" onclick="openLightbox('${url}', '${titles[slotName]}')">
+            ${isAdmin ? `<button type="button" class="delete-btn" onclick="event.stopPropagation(); removeSlotPhoto('${slotName}')">&times;</button>` : ''}
+            <div style="position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,0.7); font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; color: #fff;">
+                ${titles[slotName]}
+            </div>
+            <input type="file" id="input-photo-${slotName}" accept="image/*" capture="environment" style="display: none;" onchange="handlePhotoSelected(event, '${slotName}')">
+        `;
+    } else {
+        slot.classList.remove('has-image');
+        const icons = { screen: '🖥️', top: '💻', base: '🏷️' };
+        slot.innerHTML = `
+            <div class="slot-icon">${icons[slotName]}</div>
+            <div class="slot-title">${titles[slotName]}</div>
+            <div class="slot-desc">${isAdmin ? 'Tap to take photo' : 'No photo uploaded'}</div>
+            <input type="file" id="input-photo-${slotName}" accept="image/*" capture="environment" style="display: none;" onchange="handlePhotoSelected(event, '${slotName}')">
+        `;
+    }
+}
+
+function removeSlotPhoto(slotName) {
+    currentModalPhotos[slotName] = '';
+    renderPhotoSlot(slotName, null);
+}
+
+async function savePhotosToServer() {
+    if (!isAdmin) {
+        alert('Admin login required to upload photos.');
+        return;
+    }
+    const laptopId = document.getElementById('photoLaptopId').value;
+    const saveBtn = document.getElementById('btnSavePhotos');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Uploading & Syncing...';
+
+    try {
+        const res = await fetch(`/api/laptops/${laptopId}/photos`, {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify({
+                photo_screen: currentModalPhotos.screen,
+                photo_top: currentModalPhotos.top,
+                photo_base: currentModalPhotos.base
+            })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            alert('✅ ' + data.message + (data.gdrive && data.gdrive.success ? ' (Google Drive Synced!)' : ''));
+            closeModal('photoModal');
+            await fetchLaptops();
+        } else {
+            alert('❌ ' + (data.error || 'Photo upload failed'));
+        }
+    } catch (err) {
+        alert('Upload error: ' + err.message);
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = '☁️ Upload & Sync Photos';
+    }
+}
+
+/* =========================================================
+   ADD / EDIT LAPTOP MODAL
+   ========================================================= */
+function openAddLaptopModal() {
+    if (!isAdmin) {
+        openLoginModal();
+        return;
+    }
+    document.getElementById('modalTitle').textContent = '📱 ➕ New Customer Job & Complaints';
+    document.getElementById('laptopForm').reset();
+    document.getElementById('editLaptopId').value = '';
+    document.getElementById('formCompanyName').value = selectedCompany !== 'All' ? selectedCompany : 'Unassigned / Retail';
+    document.getElementById('laptopModal').classList.add('active');
+}
+
+function openEditLaptopModal(id) {
+    if (!isAdmin) {
+        openLoginModal();
+        return;
+    }
+    const l = allLaptops.find(x => x.id === id);
+    if (!l) return;
+
+    document.getElementById('modalTitle').textContent = '✏️ Edit Customer Job & Complaints';
+    document.getElementById('editLaptopId').value = l.id;
+    document.getElementById('formCompanyName').value = l.company_name || 'Unassigned / Retail';
+    document.getElementById('formCustName').value = l.customer_name || '';
+    document.getElementById('formCustPhone').value = l.customer_phone || '';
+    document.getElementById('formServiceStatus').value = l.service_status || 'Received';
+    document.getElementById('formOverallStatus').value = l.overall_status || 'Healthy';
+
+    const complaints = Array.isArray(l.complaints) ? l.complaints.join(', ') : (l.complaints || '');
+    document.getElementById('formCustComplaint').value = complaints;
+
+    document.getElementById('formDeviceName').value = l.device_name || '';
+    document.getElementById('formModel').value = l.model || '';
+    document.getElementById('formSerial').value = l.serial_number || '';
+    document.getElementById('formCpu').value = l.cpu || '';
+    document.getElementById('formRam').value = l.ram || '';
+    document.getElementById('formStorage').value = l.storage || '';
+    document.getElementById('formGpu').value = l.gpu || '';
+
+    document.getElementById('laptopModal').classList.add('active');
+}
+
+function addQuickComplaint(complaintText) {
+    const box = document.getElementById('formCustComplaint');
+    if (box.value.trim().length > 0) {
+        box.value += ', ' + complaintText;
+    } else {
+        box.value = complaintText;
+    }
+}
+
+async function saveLaptop(event) {
+    event.preventDefault();
+    if (!isAdmin) {
+        alert('Admin authorization required.');
+        return;
+    }
+
+    const editId = document.getElementById('editLaptopId').value;
+    const isEdit = !!editId;
+
+    const complaintsRaw = document.getElementById('formCustComplaint').value.trim();
+    const complaintsList = complaintsRaw ? complaintsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+    const payload = {
+        company_name: document.getElementById('formCompanyName').value.trim(),
+        customer_name: document.getElementById('formCustName').value.trim(),
+        customer_phone: document.getElementById('formCustPhone').value.trim(),
+        service_status: document.getElementById('formServiceStatus').value,
+        overall_status: document.getElementById('formOverallStatus').value,
+        complaints: complaintsList,
+        device_name: document.getElementById('formDeviceName').value.trim() || 'Laptop',
+        model: document.getElementById('formModel').value.trim(),
+        serial_number: document.getElementById('formSerial').value.trim(),
+        cpu: document.getElementById('formCpu').value.trim(),
+        ram: document.getElementById('formRam').value.trim(),
+        storage: document.getElementById('formStorage').value.trim(),
+        gpu: document.getElementById('formGpu').value.trim()
+    };
+
+    try {
+        const url = isEdit ? `/api/laptops/${editId}` : '/api/laptops';
+        const method = isEdit ? 'PUT' : 'POST';
+
+        const res = await fetch(url, {
+            method: method,
+            headers: getApiHeaders(),
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (res.ok && (data.success || data.laptop)) {
+            alert('✅ Laptop record saved successfully!');
+            closeModal('laptopModal');
+            await loadCompanies();
+            await fetchLaptops();
+        } else {
+            alert('❌ ' + (data.error || 'Failed to save laptop'));
+        }
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    }
+}
+
+async function deleteLaptop(id) {
+    if (!isAdmin) return;
+    if (confirm(`Delete laptop record ${id} and all related data?`)) {
+        try {
+            const res = await fetch(`/api/laptops/${id}`, {
+                method: 'DELETE',
+                headers: getApiHeaders()
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                await fetchLaptops();
+            } else {
+                alert('❌ ' + (data.error || 'Failed to delete'));
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    }
+}
+
+/* =========================================================
+   LOCAL SCANS IMPORT MODAL
+   ========================================================= */
+async function openLocalScansModal() {
+    if (!isAdmin) {
+        openLoginModal();
+        return;
+    }
+    const container = document.getElementById('localScansList');
+    container.innerHTML = '<p style="color: var(--text-muted);">Scanning folder for reports...</p>';
+    document.getElementById('scansModal').classList.add('active');
+
+    try {
+        const res = await fetch('/api/reports/local');
+        const data = await res.json();
+        const reports = data.reports || [];
+
+        if (reports.length === 0) {
+            container.innerHTML = '<p style="color: var(--text-muted);">No unimported diagnostic reports found in workspace folder.</p>';
+            return;
+        }
+
+        container.innerHTML = reports.map(r => `
+            <div class="report-item">
+                <div>
+                    <strong style="color: var(--text);">${r.deviceName}</strong>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">${r.model || 'Standard PC'} &bull; ${r.cpu || ''}</div>
+                    <div style="font-size: 0.72rem; color: var(--accent); font-family: monospace;">${r.filename}</div>
+                </div>
+                <button class="btn btn-success" style="padding: 6px 12px; font-size: 0.78rem;" onclick="importSelectedScan('${r.filename}')">⚡ Import</button>
+            </div>
+        `).join('');
+    } catch (err) {
+        container.innerHTML = '<p style="color: var(--red);">Error loading reports: ' + err.message + '</p>';
+    }
+}
+
+async function importSelectedScan(filename) {
+    const comp = prompt('Assign to Company / Client:', selectedCompany !== 'All' ? selectedCompany : 'Unassigned / Retail');
+    if (!comp) return;
+
+    try {
+        const res = await fetch('/api/reports/import', {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify({
+                filename: filename,
+                company_name: comp,
+                customer_name: 'Diagnostic Scan Import'
+            })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            alert('✅ Diagnostic report imported successfully for ' + comp + '!');
+            closeModal('scansModal');
+            await loadCompanies();
+            await fetchLaptops();
+        } else {
+            alert('❌ ' + (data.error || 'Failed to import scan'));
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+/* =========================================================
+   GOOGLE DRIVE STATUS CHECK
+   ========================================================= */
+async function checkDriveStatus(showAlert = false) {
+    try {
+        const res = await fetch('/api/gdrive/status');
+        const data = await res.json();
+        const badge = document.getElementById('gdriveStatusBadge');
+        if (data.configured) {
+            badge.style.background = 'rgba(16,185,129,0.15)';
+            badge.style.borderColor = 'var(--green)';
+            badge.style.color = '#34d399';
+            badge.textContent = '🟢 Drive Connected';
+            if (showAlert) alert('✅ Google Drive API is active!\nAccount: ' + data.details.email + '\nFolder ID: ' + (data.parent_folder_id || 'Root'));
+        } else {
+            badge.style.background = 'rgba(245,158,11,0.15)';
+            badge.style.borderColor = 'var(--amber)';
+            badge.style.color = '#fbbf24';
+            badge.textContent = '📁 Local Storage';
+            if (showAlert) alert('ℹ️ Google Drive API is in Local Mode.\nFiles are saved in laptop_images/ <Company>/<Device>/.\nTo connect Google Drive, place your service_account.json in the folder.');
+        }
+    } catch (e) {
+        // Fallback
+    }
+}
+
+function setFilter(filter) {
+    currentFilter = filter;
+    document.querySelectorAll('.filter-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.filter === filter);
+    });
+    renderLaptops();
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+}
+
+/* =========================================================
+   INITIALIZATION
+   ========================================================= */
+window.addEventListener('DOMContentLoaded', async () => {
+    await checkAuthStatus();
+    await loadCompanies();
+    await fetchLaptops();
+    await checkDriveStatus(false);
+});
+</script>
+
+</body>
+</html>
