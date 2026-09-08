@@ -613,6 +613,20 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 except Exception as e:
                     print(f"Notice: Could not write report file to disk: {e}")
 
+            # Battery Report handling (if provided)
+            bat_filename = body.get("battery_report_filename", "").strip()
+            bat_raw = body.get("battery_report_html", "")
+            bat_cycle = body.get("battery_cycle_count", "") or parsed.get("battery_cycle_count", "")
+            saved_bat_path = None
+            if bat_raw and bat_filename:
+                try:
+                    save_dir = BASE_DIR if os.access(BASE_DIR, os.W_OK) else tempfile.gettempdir()
+                    saved_bat_path = os.path.join(save_dir, bat_filename)
+                    with open(saved_bat_path, "w", encoding="utf-8") as bf:
+                        bf.write(bat_raw)
+                except Exception as e:
+                    print(f"Notice: Could not write battery report file to disk: {e}")
+
             complaints = parsed.get("complaints", [])
             if isinstance(complaints, str):
                 complaints = [complaints]
@@ -647,17 +661,23 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 "complaints": complaints,
                 "report_filename": filename,
                 "report_data": parsed,
-                "report_html": raw_content
+                "report_html": raw_content,
+                "battery_report_filename": bat_filename,
+                "battery_report_html": bat_raw,
+                "battery_cycle_count": str(bat_cycle)
             })
 
-            # Sync to Google Drive (Supports disk file or direct raw HTML)
+            # Sync to Google Drive (Supports disk file or direct raw HTML, plus Battery Report)
             drive_result = None
             try:
                 drive_res = gdrive_sync.sync_laptop_to_drive(
                     new_laptop,
                     report_path=saved_report_path,
                     report_html_content=raw_content,
-                    report_filename=filename
+                    report_filename=filename,
+                    battery_report_path=saved_bat_path,
+                    battery_report_content=bat_raw,
+                    battery_report_filename=bat_filename
                 )
                 if drive_res.get("success"):
                     d_url = drive_res.get("laptop_folder_url", "")

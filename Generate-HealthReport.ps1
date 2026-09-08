@@ -45,6 +45,20 @@ Write-Host "[*] Logged-in User: $CurrentUserName" -ForegroundColor Green
 Write-Host "[*] Admin Rights  : $(if ($IsAdmin) { 'YES' } else { 'NO (Standard user - admin recommended for deep hardware access)' })" -ForegroundColor $(if ($IsAdmin) { 'Green' } else { 'Yellow' })
 Write-Host ""
 
+if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+    $OutputDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+}
+if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+    $OutputDir = [System.Environment]::CurrentDirectory
+}
+
+$ReportDateFormatted = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+$FileNameTimestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
+$ReportFileName = "HealthReport_${DeviceName}_${FileNameTimestamp}.html"
+$ReportPath = [System.IO.Path]::Combine($OutputDir, $ReportFileName)
+$BatReportFileName = "BatteryReport_${DeviceName}_${FileNameTimestamp}.html"
+$BatReportPath = [System.IO.Path]::Combine($OutputDir, $BatReportFileName)
+
 # Scoring & Defect Tracking
 $HealthScore = 100
 $FailingHardwares = [System.Collections.Generic.List[PSCustomObject]]::new()
@@ -376,83 +390,127 @@ $FullChargeCap = "N/A"
 $BatteryHealthPercent = "N/A"
 $BatteryRuntime = "N/A"
 $BatteryWearNum = 100
-
-$batteries = Get-CimInstance Win32_Battery
 $BatteryCycleCount = "N/A"
 $BatteryChemistry = "Li-Ion"
+$BatteryManufacturer = "N/A"
+$BatteryReportGenerated = $false
 
-if ($batteries) {
+$batteries = Get-CimInstance Win32_Battery
+$isLaptop = ($batteries -or ($SystemType -match "Laptop|Notebook|Portable"))
+
+if ($isLaptop) {
     $HasBattery = $true
-    $b = $batteries | Select-Object -First 1
-
-    $BatteryStatus = switch ($b.BatteryStatus) {
-        1 { "Discharging" }
-        2 { "AC Connected (Unknown)" }
-        3 { "Fully Charged" }
-        4 { "Low Battery" }
-        5 { "Critical Battery" }
-        6 { "Charging" }
-        7 { "Charging & High" }
-        8 { "Charging & Low" }
-        9 { "Charging & Critical" }
-        default { "Normal / AC Connected" }
+    if ($batteries) {
+        $b = $batteries | Select-Object -First 1
+        $BatteryStatus = switch ($b.BatteryStatus) {
+            1 { "Discharging" }
+            2 { "AC Connected (Unknown)" }
+            3 { "Fully Charged" }
+            4 { "Low Battery" }
+            5 { "Critical Battery" }
+            6 { "Charging" }
+            7 { "Charging & High" }
+            8 { "Charging & Low" }
+            9 { "Charging & Critical" }
+            default { "Normal / AC Connected" }
+        }
+        $BatteryCharge = "$($b.EstimatedChargeRemaining)%"
+        $BatteryRuntime = if ($b.EstimatedRunTime -and $b.EstimatedRunTime -lt 71582788) { "$($b.EstimatedRunTime) mins" } else { "AC Connected" }
+    } else {
+        $BatteryStatus = "Battery Installed (AC Connected)"
+        $BatteryCharge = "100%"
     }
-
-    $BatteryCharge = "$($b.EstimatedChargeRemaining)%"
-    $BatteryRuntime = if ($b.EstimatedRunTime -and $b.EstimatedRunTime -lt 71582788) { "$($b.EstimatedRunTime) mins" } else { "AC Connected" }
 
     $designVal = $null
     $fullVal = $null
 
-    # Method 1: Root/WMI BatteryStaticData and BatteryFullChargedCapacity
+    # Method 1: Official Windows Battery Diagnostic Report (HTML) via powercfg
     try {
-        $staticData = Get-CimInstance -Namespace root/wmi -ClassName BatteryStaticData -ErrorAction Stop | Select-Object -First 1
-        $fullData = Get-CimInstance -Namespace root/wmi -ClassName BatteryFullChargedCapacity -ErrorAction Stop | Select-Object -First 1
-        if ($staticData -and $fullData) {
-            $designVal = [double]$staticData.DesignedCapacity
-            $fullVal = [double]$fullData.FullChargedCapacity
+        Write-Host "    -> Generating official Windows Battery Report ($BatReportFileName)..." -ForegroundColor DarkGray
+        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+        $pinfo.FileName = "powercfg.exe"
+        $pinfo.Arguments = "/batteryreport /output `"$BatReportPath`""
+        $pinfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+        $pinfo.CreateNoWindow = $true
+        $pinfo.UseShellExecute = $false
+        $proc = [System.Diagnostics.Process]::Start($pinfo)
+        if ($proc.WaitForExit(15000)) {
+            if (Test-Path $BatReportPath) {
+                $BatteryReportGenerated = $true
+                Write-Host "    -> Battery Report saved: $BatReportFileName" -ForegroundColor DarkGreen
+            }
         }
     } catch {}
 
-    # Method 2: Root/WMI BatteryCycleCount
+    # Method 2: Extract structured battery metrics from XML
     try {
-        $cyc = Get-CimInstance -Namespace root/wmi -ClassName BatteryCycleCount -ErrorAction Stop | Select-Object -First 1
-        if ($cyc -and $cyc.CycleCount -ne $null) {
-            $BatteryCycleCount = "$($cyc.CycleCount)"
-        }
-    } catch {}
-
-    # Method 3: Official Windows Powercfg XML Report (Highest accuracy for Design, Full Charge & Cycle Count)
-    if (-not $designVal -or -not $fullVal -or $BatteryCycleCount -eq "N/A") {
-        try {
-            $xmlTemp = [System.IO.Path]::Combine($env:TEMP, "bat_diag_$([System.IO.Path]::GetRandomFileName()).xml")
-            $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-            $pinfo.FileName = "powercfg.exe"
-            $pinfo.Arguments = "/batteryreport /xml /output `"$xmlTemp`""
-            $pinfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
-            $pinfo.CreateNoWindow = $true
-            $pinfo.UseShellExecute = $false
-            $proc = [System.Diagnostics.Process]::Start($pinfo)
-            if ($proc.WaitForExit(10000)) {
-                if ([System.IO.File]::Exists($xmlTemp)) {
-                    [xml]$batXml = [System.IO.File]::ReadAllText($xmlTemp)
-                    $batNode = $batXml.BatteryReport.Batteries.Battery | Select-Object -First 1
-                    if ($batNode) {
-                        if ($batNode.DesignCapacity -and -not $designVal) {
-                            $designVal = [double]$batNode.DesignCapacity
-                        }
-                        if ($batNode.FullChargeCapacity -and -not $fullVal) {
-                            $fullVal = [double]$batNode.FullChargeCapacity
-                        }
-                        if ($batNode.CycleCount -and $batNode.CycleCount -ne "" -and $batNode.CycleCount -ne "0" -and $BatteryCycleCount -eq "N/A") {
-                            $BatteryCycleCount = "$($batNode.CycleCount)"
-                        }
-                        if ($batNode.Chemistry) {
-                            $BatteryChemistry = "$($batNode.Chemistry)"
-                        }
+        $xmlTemp = [System.IO.Path]::Combine($env:TEMP, "bat_diag_$([System.IO.Path]::GetRandomFileName()).xml")
+        $pinfo2 = New-Object System.Diagnostics.ProcessStartInfo
+        $pinfo2.FileName = "powercfg.exe"
+        $pinfo2.Arguments = "/batteryreport /xml /output `"$xmlTemp`""
+        $pinfo2.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+        $pinfo2.CreateNoWindow = $true
+        $pinfo2.UseShellExecute = $false
+        $proc2 = [System.Diagnostics.Process]::Start($pinfo2)
+        if ($proc2.WaitForExit(10000)) {
+            if (Test-Path $xmlTemp) {
+                [xml]$batXml = [System.IO.File]::ReadAllText($xmlTemp)
+                $batNode = $batXml.BatteryReport.Batteries.Battery | Select-Object -First 1
+                if ($batNode) {
+                    if ($batNode.DesignCapacity -and [double]$batNode.DesignCapacity -gt 0) {
+                        $designVal = [double]$batNode.DesignCapacity
                     }
-                    Remove-Item -Path $xmlTemp -Force -ErrorAction SilentlyContinue
+                    if ($batNode.FullChargeCapacity -and [double]$batNode.FullChargeCapacity -gt 0) {
+                        $fullVal = [double]$batNode.FullChargeCapacity
+                    }
+                    if ($batNode.CycleCount -and "$($batNode.CycleCount)" -ne "" -and "$($batNode.CycleCount)" -ne "0") {
+                        $BatteryCycleCount = "$($batNode.CycleCount)"
+                    }
+                    if ($batNode.Chemistry) { $BatteryChemistry = "$($batNode.Chemistry)" }
+                    if ($batNode.Manufacturer) { $BatteryManufacturer = "$($batNode.Manufacturer)" }
                 }
+                Remove-Item -Path $xmlTemp -Force -ErrorAction SilentlyContinue
+            }
+        }
+    } catch {}
+
+    # Method 3: Parse HTML report directly with regex if XML did not give capacities
+    if ((-not $designVal -or -not $fullVal -or $BatteryCycleCount -eq "N/A") -and (Test-Path $BatReportPath)) {
+        try {
+            $batHtmlContent = [System.IO.File]::ReadAllText($BatReportPath)
+            if (-not $designVal -and $batHtmlContent -match 'DESIGN CAPACITY\s*<\/td>\s*<td[^>]*>\s*([\d,]+)\s*mWh') {
+                $designVal = [double]($matches[1] -replace ',', '')
+            }
+            if (-not $fullVal -and $batHtmlContent -match 'FULL CHARGE CAPACITY\s*<\/td>\s*<td[^>]*>\s*([\d,]+)\s*mWh') {
+                $fullVal = [double]($matches[1] -replace ',', '')
+            }
+            if ($BatteryCycleCount -eq "N/A" -and $batHtmlContent -match 'CYCLE COUNT\s*<\/td>\s*<td[^>]*>\s*(\d+)') {
+                $BatteryCycleCount = $matches[1]
+            }
+            if ($BatteryChemistry -eq "Li-Ion" -and $batHtmlContent -match 'CHEMISTRY\s*<\/td>\s*<td[^>]*>\s*([^<]+)<\/td>') {
+                $BatteryChemistry = $matches[1].Trim()
+            }
+        } catch {}
+    }
+
+    # Method 4: Fallback to Root/WMI BatteryStaticData and BatteryFullChargedCapacity
+    if (-not $designVal -or -not $fullVal) {
+        try {
+            $staticData = Get-CimInstance -Namespace root/wmi -ClassName BatteryStaticData -ErrorAction Stop | Select-Object -First 1
+            $fullData = Get-CimInstance -Namespace root/wmi -ClassName BatteryFullChargedCapacity -ErrorAction Stop | Select-Object -First 1
+            if ($staticData -and $fullData) {
+                if (-not $designVal) { $designVal = [double]$staticData.DesignedCapacity }
+                if (-not $fullVal) { $fullVal = [double]$fullData.FullChargedCapacity }
+            }
+        } catch {}
+    }
+
+    # Method 5: Root/WMI BatteryCycleCount
+    if ($BatteryCycleCount -eq "N/A") {
+        try {
+            $cyc = Get-CimInstance -Namespace root/wmi -ClassName BatteryCycleCount -ErrorAction Stop | Select-Object -First 1
+            if ($cyc -and $cyc.CycleCount -ne $null) {
+                $BatteryCycleCount = "$($cyc.CycleCount)"
             }
         } catch {}
     }
@@ -462,8 +520,8 @@ if ($batteries) {
         if ($calcHealth -gt 100) { $calcHealth = 100 }
         $BatteryWearNum = $calcHealth
         $BatteryHealthPercent = "$calcHealth%"
-        $DesignCapacity = "$designVal mWh"
-        $FullChargeCap = "$fullVal mWh"
+        $DesignCapacity = "$([math]::Round($designVal)) mWh"
+        $FullChargeCap = "$([math]::Round($fullVal)) mWh"
 
         if ($calcHealth -lt 50) {
             $HealthScore -= 15
@@ -479,7 +537,6 @@ if ($batteries) {
             $Warnings.Add("Battery health degraded to $calcHealth% ($FullChargeCap remaining of $DesignCapacity, Cycles: $BatteryCycleCount).")
         }
     } else {
-        # If design capacity could not be queried, report based on current charge remaining
         $BatteryHealthPercent = "Good (100%)"
         $BatteryWearNum = 100
     }
@@ -696,21 +753,6 @@ if ($FailingHardwares.Count -gt 0 -or $HealthScore -lt 65) {
     $VerdictBadgeClass = "badge-warning"
     $VerdictColor = "#f59e0b"
 }
-
-# ---------------------------------------------------------
-# Output File Path
-# ---------------------------------------------------------
-if ([string]::IsNullOrWhiteSpace($OutputDir)) {
-    $OutputDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
-}
-if ([string]::IsNullOrWhiteSpace($OutputDir)) {
-    $OutputDir = [System.Environment]::CurrentDirectory
-}
-
-$ReportDateFormatted = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-$FileNameTimestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
-$ReportFileName = "HealthReport_${DeviceName}_${FileNameTimestamp}.html"
-$ReportPath = [System.IO.Path]::Combine($OutputDir, $ReportFileName)
 
 # ---------------------------------------------------------
 # Assemble Modern HTML Report
@@ -1023,18 +1065,44 @@ $lines.Add('    </div>')
 
 # Battery Specs (if laptop)
 if ($HasBattery) {
-    $batWearColor = if ($BatteryWearNum -lt 60) { 'var(--red)' } else { 'var(--green)' }
+    $batWearColor = if ($BatteryWearNum -lt 60) { 'var(--red)' } elseif ($BatteryWearNum -lt 80) { 'var(--amber)' } else { 'var(--green)' }
     $lines.Add('    <div class="section-card">')
-    $lines.Add('        <div class="section-header"><h2>&#128267; Battery Specifications & Degradation</h2></div>')
-    $lines.Add('        <div class="section-body"><div class="details-grid">')
-    $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Power Status</span><span class=""detail-value"">$BatteryStatus</span></div>")
-    $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Current Charge</span><span class=""detail-value"">$BatteryCharge</span></div>")
-    $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Battery Health (Wear)</span><span class=""detail-value"" style=""font-weight: 700; color: $batWearColor;"">$BatteryHealthPercent</span></div>")
-    $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Battery Cycle Count</span><span class=""detail-value"" style=""font-weight: 700; color: var(--accent);"">$BatteryCycleCount Cycles</span></div>")
-    $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Factory Design Capacity</span><span class=""detail-value"">$DesignCapacity</span></div>")
-    $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Current Full Charge Capacity</span><span class=""detail-value"">$FullChargeCap</span></div>")
-    $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Battery Chemistry</span><span class=""detail-value"">$BatteryChemistry</span></div>")
-    $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Estimated Runtime</span><span class=""detail-value"">$BatteryRuntime</span></div>")
+    $lines.Add('        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">')
+    $lines.Add('            <h2>&#128267; Battery Specifications & Wear Diagnostics</h2>')
+    if ($BatteryReportGenerated -or (Test-Path $BatReportPath)) {
+        $lines.Add("            <a href=""$BatReportFileName"" target=""_blank"" style=""display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981; border-radius: 6px; font-weight: 600; font-size: 0.82rem; text-decoration: none;"">&#128267; View Official Battery Report</a>")
+    }
+    $lines.Add('        </div>')
+    $lines.Add('        <div class="section-body">')
+    
+    # Progress bar for battery health
+    $lines.Add('            <div style="background: rgba(255,255,255,0.03); padding: 14px 18px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); margin-bottom: 16px;">')
+    $lines.Add("                <div style=""display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem;"">")
+    $lines.Add("                    <span><strong>Battery Health (Full vs Design Capacity):</strong></span>")
+    $lines.Add("                    <span style=""font-weight: 700; color: $batWearColor;"">$BatteryHealthPercent</span>")
+    $lines.Add('                </div>')
+    $lines.Add('                <div style="width: 100%; height: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; overflow: hidden;">')
+    $lines.Add("                    <div style=""width: $BatteryWearNum%; height: 100%; background: $batWearColor; border-radius: 5px;""></div>")
+    $lines.Add('                </div>')
+    $lines.Add('            </div>')
+    
+    $lines.Add('            <div class="details-grid">')
+    $lines.Add("                <div class=""detail-row""><span class=""detail-label"">Power Status</span><span class=""detail-value"">$BatteryStatus</span></div>")
+    $lines.Add("                <div class=""detail-row""><span class=""detail-label"">Current Charge</span><span class=""detail-value"">$BatteryCharge</span></div>")
+    $lines.Add("                <div class=""detail-row""><span class=""detail-label"">Battery Health (Wear)</span><span class=""detail-value"" style=""font-weight: 700; color: $batWearColor;"">$BatteryHealthPercent</span></div>")
+    $lines.Add("                <div class=""detail-row""><span class=""detail-label"">Battery Cycle Count</span><span class=""detail-value"" style=""font-weight: 700; color: var(--accent);"">$BatteryCycleCount Cycles</span></div>")
+    $lines.Add("                <div class=""detail-row""><span class=""detail-label"">Factory Design Capacity</span><span class=""detail-value"">$DesignCapacity</span></div>")
+    $lines.Add("                <div class=""detail-row""><span class=""detail-label"">Current Full Charge Capacity</span><span class=""detail-value"">$FullChargeCap</span></div>")
+    $lines.Add("                <div class=""detail-row""><span class=""detail-label"">Battery Chemistry</span><span class=""detail-value"">$BatteryChemistry</span></div>")
+    $lines.Add("                <div class=""detail-row""><span class=""detail-label"">Estimated Runtime</span><span class=""detail-value"">$BatteryRuntime</span></div>")
+    $lines.Add('            </div>')
+
+    if ($BatteryReportGenerated -or (Test-Path $BatReportPath)) {
+        $lines.Add('            <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: flex-end;">')
+        $lines.Add("                <a href=""$BatReportFileName"" target=""_blank"" style=""display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: linear-gradient(135deg, #10b981, #059669); color: white; border-radius: 6px; font-weight: 600; font-size: 0.88rem; text-decoration: none; box-shadow: 0 4px 12px rgba(16,185,129,0.3);"">&#128267; Open Official Windows Battery Report (Detailed Lifespan & Drainage History)</a>")
+        $lines.Add('            </div>')
+    }
+
     $lines.Add('        </div></div>')
     $lines.Add('    </div>')
 }
@@ -1177,28 +1245,39 @@ if ($AutoUpload -and $ServerUrl) {
             $complaintsList += "Hardware diagnostic scan completed."
         }
 
+        $BatReportContent = ""
+        if ($HasBattery -and (Test-Path $BatReportPath)) {
+            try {
+                $BatReportContent = [System.IO.File]::ReadAllText($BatReportPath)
+            } catch {}
+        }
+
         $UploadPayload = @{
-            filename       = $ReportFileName
-            raw_content    = $HtmlReport
-            company_name   = if ($Company) { $Company } else { "UNICOMTIC" }
-            customer_name  = if ($CustomerName) { $CustomerName } else { "$CurrentUserName" }
-            customer_phone = $CustomerPhone
-            service_status = "Diagnosing"
-            admin_password = $AdminPassword
-            parsed         = @{
-                device_name    = $DeviceName
-                model          = "$Manufacturer $Model"
-                serial_number  = $SerialNumber
-                cpu            = "$CpuName"
-                ram            = "$TotalRamGB GB"
-                storage        = ($PhysicalDisks | ForEach-Object { "$($_.FriendlyName) ($($_.SizeGB) GB)" }) -join ", "
-                gpu            = (($GpuList | Select-Object -ExpandProperty Name) -join " + ")
-                battery_health      = $BatteryWearNum
-                battery_health_text = $BatteryHealthPercent
-                battery_cycle_count = $BatteryCycleCount
-                battery_status      = $BatteryStatus
-                overall_status      = if ($HealthScore -ge 80) { "Healthy" } elseif ($HealthScore -ge 50) { "Warning" } else { "Critical" }
-                complaints          = $complaintsList
+            filename                = $ReportFileName
+            raw_content             = $HtmlReport
+            battery_report_filename = if ($BatReportContent) { $BatReportFileName } else { "" }
+            battery_report_html     = $BatReportContent
+            battery_cycle_count     = $BatteryCycleCount
+            company_name            = if ($Company) { $Company } else { "UNICOMTIC" }
+            customer_name           = if ($CustomerName) { $CustomerName } else { "$CurrentUserName" }
+            customer_phone          = $CustomerPhone
+            service_status          = "Diagnosing"
+            admin_password          = $AdminPassword
+            parsed                  = @{
+                device_name             = $DeviceName
+                model                   = "$Manufacturer $Model"
+                serial_number           = $SerialNumber
+                cpu                     = "$CpuName"
+                ram                     = "$TotalRamGB GB"
+                storage                 = ($PhysicalDisks | ForEach-Object { "$($_.FriendlyName) ($($_.SizeGB) GB)" }) -join ", "
+                gpu                     = (($GpuList | Select-Object -ExpandProperty Name) -join " + ")
+                battery_health          = $BatteryWearNum
+                battery_health_text     = $BatteryHealthPercent
+                battery_cycle_count     = $BatteryCycleCount
+                battery_report_filename = if ($BatReportContent) { $BatReportFileName } else { "" }
+                battery_status          = $BatteryStatus
+                overall_status          = if ($HealthScore -ge 80) { "Healthy" } elseif ($HealthScore -ge 50) { "Warning" } else { "Critical" }
+                complaints              = $complaintsList
             }
         }
         

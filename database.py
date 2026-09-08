@@ -78,6 +78,24 @@ def init_db():
     except Exception:
         pass
 
+    try:
+        cursor.execute("ALTER TABLE laptops ADD COLUMN battery_report_filename TEXT DEFAULT ''")
+        conn.commit()
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE laptops ADD COLUMN battery_report_html TEXT DEFAULT ''")
+        conn.commit()
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE laptops ADD COLUMN battery_cycle_count TEXT DEFAULT ''")
+        conn.commit()
+    except Exception:
+        pass
+
     # Seed default companies if none exist
     cursor.execute("SELECT COUNT(*) FROM companies")
     if cursor.fetchone()[0] == 0:
@@ -254,14 +272,23 @@ def get_laptop(laptop_id: str):
     return d
 
 def get_report_html_by_filename(filename: str) -> str:
-    """Finds stored report_html by report_filename or laptop id."""
+    """Finds stored report_html or battery_report_html by filename or laptop id."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT report_html FROM laptops WHERE report_filename = ? OR id = ? LIMIT 1", (filename, filename.replace(".html", "")))
     row = cursor.fetchone()
-    conn.close()
     if row and row[0]:
+        conn.close()
         return row[0]
+    try:
+        cursor.execute("SELECT battery_report_html FROM laptops WHERE battery_report_filename = ? LIMIT 1", (filename,))
+        row = cursor.fetchone()
+        if row and row[0]:
+            conn.close()
+            return row[0]
+    except Exception:
+        pass
+    conn.close()
     return ""
 
 def find_duplicate_laptop(serial_number: str = None, device_name: str = None, company_name: str = None):
@@ -325,8 +352,9 @@ def create_laptop(data: dict):
         device_name, model, serial_number, cpu, ram, storage, gpu,
         battery_health, overall_status, service_status, complaints,
         photo_screen, photo_top, photo_base, report_filename, report_data,
-        report_html, gdrive_folder_url, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        report_html, battery_report_filename, battery_report_html, battery_cycle_count,
+        gdrive_folder_url, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         lap_id,
         company,
@@ -349,6 +377,9 @@ def create_laptop(data: dict):
         data.get("report_filename", ""),
         json.dumps(data.get("report_data", {})),
         data.get("report_html", ""),
+        data.get("battery_report_filename", ""),
+        data.get("battery_report_html", ""),
+        str(data.get("battery_cycle_count", "")),
         data.get("gdrive_folder_url", ""),
         now,
         now
@@ -368,7 +399,9 @@ def update_laptop(laptop_id: str, data: dict):
         "company_name", "customer_name", "customer_phone", "device_name", "model",
         "serial_number", "cpu", "ram", "storage", "gpu", "battery_health",
         "overall_status", "service_status", "photo_screen", "photo_top",
-        "photo_base", "report_filename", "report_html", "gdrive_folder_url"
+        "photo_base", "report_filename", "report_html", 
+        "battery_report_filename", "battery_report_html", "battery_cycle_count",
+        "gdrive_folder_url"
     ]
     
     for k in updatable:

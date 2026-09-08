@@ -250,9 +250,9 @@ def upload_or_update_bytes(file_bytes: bytes, file_name: str, parent_folder_id: 
     logger.error(f"Byte upload error for {file_name}: {resp.text}")
     return None
 
-def sync_laptop_to_drive(laptop_data: dict, photo_paths: list = None, report_path: str = None, report_html_content: str = None, report_filename: str = None) -> dict:
+def sync_laptop_to_drive(laptop_data: dict, photo_paths: list = None, report_path: str = None, report_html_content: str = None, report_filename: str = None, battery_report_path: str = None, battery_report_content: str = None, battery_report_filename: str = None) -> dict:
     """
-    Syncs laptop record, photos, and HTML diagnostic report to the folder structure:
+    Syncs laptop record, photos, HTML diagnostic report, and official battery report to the folder structure:
     Root / <Company> / <DeviceName_Serial> /
     """
     token, err = get_access_token()
@@ -303,6 +303,16 @@ def sync_laptop_to_drive(laptop_data: dict, photo_paths: list = None, report_pat
             rep_res = upload_or_update_bytes(report_html_content.encode("utf-8"), report_filename, laptop_folder_id)
             if rep_res:
                 uploaded_files.append(rep_res)
+
+        # 5. Upload Battery Report if exists
+        if battery_report_path and os.path.exists(battery_report_path) and os.path.isfile(battery_report_path):
+            bat_res = upload_or_update_file(battery_report_path, laptop_folder_id, os.path.basename(battery_report_path))
+            if bat_res:
+                uploaded_files.append(bat_res)
+        elif battery_report_content and battery_report_filename:
+            bat_res = upload_or_update_bytes(battery_report_content.encode("utf-8"), battery_report_filename, laptop_folder_id)
+            if bat_res:
+                uploaded_files.append(bat_res)
 
         return {
             "success": True,

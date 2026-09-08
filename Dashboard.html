@@ -1623,7 +1623,7 @@ function createLaptopCardHTML(l) {
                         <div style="text-align: right;">
                             <span class="spec-label">Cycle Count</span>
                             <span class="spec-value" style="color: var(--accent); font-family: monospace;">
-                                ${l.report_data && l.report_data.battery_cycle_count && l.report_data.battery_cycle_count !== 'N/A' ? l.report_data.battery_cycle_count + ' cycles' : (l.battery_cycle_count ? l.battery_cycle_count + ' cycles' : 'Check Report')}
+                                ${(l.battery_cycle_count && l.battery_cycle_count !== 'N/A' && l.battery_cycle_count !== '') ? l.battery_cycle_count + ' cycles' : ((l.report_data && l.report_data.battery_cycle_count && l.report_data.battery_cycle_count !== 'N/A') ? l.report_data.battery_cycle_count + ' cycles' : 'Check Report')}
                             </span>
                         </div>
                     </div>
@@ -1632,6 +1632,10 @@ function createLaptopCardHTML(l) {
                 <div class="card-actions">
                     ${l.report_filename ? `
                         <a href="/api/reports/html/${l.report_filename}" target="_blank" class="btn btn-primary" title="Open Full Health Report">📄 Report</a>
+                    ` : ''}
+
+                    ${(l.battery_report_filename || (l.report_data && l.report_data.battery_report_filename)) ? `
+                        <a href="/api/reports/html/${l.battery_report_filename || l.report_data.battery_report_filename}" target="_blank" class="btn" style="border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.1);" title="Open Official Microsoft Battery Report">🔋 Battery</a>
                     ` : ''}
                     
                     ${l.gdrive_folder_url ? `
