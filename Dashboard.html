@@ -1109,6 +1109,7 @@ async function submitAdminLogin(event) {
         if (res.ok && data.success) {
             authToken = data.token;
             localStorage.setItem('laptop_admin_token', authToken);
+            localStorage.setItem('laptop_last_activity', Date.now().toString());
             isAdmin = true;
             closeModal('loginModal');
             updateAuthUI();
@@ -1122,15 +1123,53 @@ async function submitAdminLogin(event) {
     }
 }
 
-async function logoutAdmin() {
+const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000; // 1 Hour (60 minutes)
+
+async function logoutAdmin(isAuto = false) {
     try {
         await fetch('/api/auth/logout', { method: 'POST', headers: getApiHeaders() });
     } catch (e) {}
     authToken = null;
     localStorage.removeItem('laptop_admin_token');
+    localStorage.removeItem('laptop_last_activity');
     isAdmin = false;
     updateAuthUI();
     renderLaptops();
+    if (isAuto) {
+        alert('⏳ 1 மணிநேரம் எந்த நடவடிக்கையும் இல்லாததால் (1 Hour Inactivity), Admin session பாதுகாப்பிற்காக Logout செய்யப்பட்டுள்ளது.\nதேவைப்பட்டால் மீண்டும் Login செய்யவும்.');
+    }
+}
+
+function recordUserActivity() {
+    if (!isAdmin) return;
+    const now = Date.now();
+    const last = parseInt(localStorage.getItem('laptop_last_activity') || '0', 10);
+    // Throttle writing to localStorage to every 10 seconds
+    if (now - last > 10000) {
+        localStorage.setItem('laptop_last_activity', now.toString());
+    }
+}
+
+function checkInactivityTimeout() {
+    if (!isAdmin) return;
+    const last = parseInt(localStorage.getItem('laptop_last_activity') || '0', 10);
+    if (last > 0 && (Date.now() - last >= INACTIVITY_TIMEOUT_MS)) {
+        logoutAdmin(true);
+    }
+}
+
+function setupActivityListeners() {
+    ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'].forEach(evt => {
+        window.addEventListener(evt, recordUserActivity, { passive: true });
+    });
+    // Check inactivity every 15 seconds
+    setInterval(checkInactivityTimeout, 15000);
+    // Check when user switches back to this browser tab
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            checkInactivityTimeout();
+        }
+    });
 }
 
 function openChangePwdModal() {
@@ -2179,6 +2218,19 @@ function closeModal(modalId) {
    INITIALIZATION
    ========================================================= */
 window.addEventListener('DOMContentLoaded', async () => {
+    // Check if session timed out during inactivity while browser was closed
+    if (authToken) {
+        const last = parseInt(localStorage.getItem('laptop_last_activity') || '0', 10);
+        if (last > 0 && (Date.now() - last >= INACTIVITY_TIMEOUT_MS)) {
+            authToken = null;
+            localStorage.removeItem('laptop_admin_token');
+            localStorage.removeItem('laptop_last_activity');
+        } else {
+            localStorage.setItem('laptop_last_activity', Date.now().toString());
+        }
+    }
+    setupActivityListeners();
+
     await checkAuthStatus();
     await loadCompanies();
     await fetchLaptops();
