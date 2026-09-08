@@ -193,7 +193,14 @@ def upload_or_update_file(file_path: str, parent_folder_id: str, file_title: str
         resp = requests.post(upload_url, headers=headers, files=files, timeout=20)
 
     if resp.status_code in (200, 201):
-        return resp.json()
+        res_data = resp.json()
+        if res_data.get("id"):
+            try:
+                perm_url = f"https://www.googleapis.com/drive/v3/files/{res_data['id']}/permissions"
+                requests.post(perm_url, headers=headers, json={"role": "reader", "type": "anyone"}, timeout=10)
+            except Exception:
+                pass
+        return res_data
     logger.error(f"File upload error for {file_name}: {resp.text}")
     return None
 

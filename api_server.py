@@ -282,26 +282,30 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
 
             for key in ["photo_screen", "photo_top", "photo_base"]:
                 b64data = body.get(key)
-                if b64data and b64data.startswith("data:image"):
-                    try:
-                        header, encoded = b64data.split(",", 1)
-                        ext = ".jpg"
-                        if "png" in header:
-                            ext = ".png"
-                        elif "webp" in header:
-                            ext = ".webp"
-                        
-                        fname = f"{key}{ext}"
-                        fpath = os.path.join(save_dir, fname)
-                        with open(fpath, "wb") as img_file:
-                            img_file.write(base64.b64decode(encoded))
-                        
-                        # Relative URL path for frontend: /laptop_images/<Company>/<DevFolder>/<fname>
-                        rel_url = f"/laptop_images/{urllib.parse.quote(company)}/{urllib.parse.quote(dev_folder)}/{fname}"
-                        updated_fields[key] = rel_url
-                        saved_paths.append(fpath)
-                    except Exception as e:
-                        print(f"Error decoding image {key}: {e}")
+                if b64data:
+                    if b64data.startswith("data:image"):
+                        # Keep Base64 data URL directly so image is 100% reliable on Vercel and mobile
+                        updated_fields[key] = b64data
+                        try:
+                            header, encoded = b64data.split(",", 1)
+                            ext = ".jpg"
+                            if "png" in header:
+                                ext = ".png"
+                            elif "webp" in header:
+                                ext = ".webp"
+                            
+                            fname = f"{key}{ext}"
+                            fpath = os.path.join(save_dir, fname)
+                            with open(fpath, "wb") as img_file:
+                                img_file.write(base64.b64decode(encoded))
+                            saved_paths.append(fpath)
+                        except Exception as e:
+                            # Read-only serverless filesystem fallback
+                            pass
+                    elif b64data.startswith("http://") or b64data.startswith("https://"):
+                        updated_fields[key] = b64data
+                elif b64data == "":
+                    updated_fields[key] = ""
 
             if updated_fields:
                 laptop = database.update_laptop(laptop_id, updated_fields)

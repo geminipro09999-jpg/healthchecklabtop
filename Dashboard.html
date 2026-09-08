@@ -915,6 +915,39 @@ let authToken = localStorage.getItem('laptop_admin_token') || null;
 // Temporary cache for photo upload modal
 let currentModalPhotos = { screen: null, top: null, base: null };
 
+const FALLBACK_IMAGE_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400" fill="%230f172a"><rect width="100%" height="100%" fill="%231e293b"/><text x="50%" y="43%" dominant-baseline="middle" text-anchor="middle" fill="%2364748b" font-family="system-ui" font-size="44">📷</text><text x="50%" y="58%" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-family="system-ui" font-size="16" font-weight="600">Inspection Photo Pending</text><text x="50%" y="68%" dominant-baseline="middle" text-anchor="middle" fill="%2364748b" font-family="system-ui" font-size="13">Syncing with Storage</text></svg>`;
+
+function compressImage(file, maxDimension = 1200, quality = 0.82) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                let { width, height } = img;
+                if (width > maxDimension || height > maxDimension) {
+                    if (width > height) {
+                        height = Math.round((height * maxDimension) / width);
+                        width = maxDimension;
+                    } else {
+                        width = Math.round((width * maxDimension) / height);
+                        height = maxDimension;
+                    }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
 /* =========================================================
    API CLIENT HELPERS
    ========================================================= */
@@ -1181,6 +1214,23 @@ function updateKPIs(laptops) {
     document.getElementById('countFaulty').textContent = faultyCount;
 }
 
+function formatPhotoUrl(url) {
+    if (!url) return FALLBACK_IMAGE_SVG;
+    if (url.startsWith('data:image')) return url;
+    const driveMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (driveMatch && driveMatch[1]) {
+        return `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1000`;
+    }
+    return url;
+}
+
+function handleImgError(el) {
+    if (el) {
+        el.onerror = null;
+        el.src = FALLBACK_IMAGE_SVG;
+    }
+}
+
 function createLaptopCardHTML(l) {
     let badgeClass = 'badge-healthy';
     if (l.overall_status === 'Critical') badgeClass = 'badge-critical';
@@ -1200,7 +1250,7 @@ function createLaptopCardHTML(l) {
             <div class="carousel-container" id="carousel-${l.id}">
                 ${photos.map((img, idx) => `
                     <div class="carousel-slide ${idx === 0 ? 'active' : ''}" data-idx="${idx}">
-                        <img src="${img.url}" alt="${l.device_name} Photo ${idx + 1}" onclick="openLightbox('${img.url}', '${l.device_name} - ${img.title}')">
+                        <img src="${formatPhotoUrl(img.url)}" alt="${l.device_name} Photo ${idx + 1}" onerror="handleImgError(this)" onclick="openLightbox('${img.url.replace(/'/g, "\\'")}', '${l.device_name} - ${img.title}')">
                     </div>
                 `).join('')}
                 ${imageCount > 1 ? `
@@ -1328,7 +1378,12 @@ function prevSlide(lapId) {
    LIGHTBOX FULLSCREEN VIEWER
    ========================================================= */
 function openLightbox(url, caption) {
-    document.getElementById('lightboxImg').src = url;
+    const img = document.getElementById('lightboxImg');
+    img.src = formatPhotoUrl(url);
+    img.onerror = function() {
+        this.onerror = null;
+        this.src = FALLBACK_IMAGE_SVG;
+    };
     document.getElementById('lightboxCaption').textContent = caption || 'Photo Preview';
     document.getElementById('lightboxModal').classList.add('active');
 }
@@ -1368,17 +1423,23 @@ function triggerPhotoCapture(slotName) {
     if (input) input.click();
 }
 
-function handlePhotoSelected(event, slotName) {
+async function handlePhotoSelected(event, slotName) {
     const file = event.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const b64 = e.target.result;
+    try {
+        const b64 = await compressImage(file, 1200, 0.82);
         currentModalPhotos[slotName] = b64;
         renderPhotoSlot(slotName, b64);
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+        console.warn('Compression fallback:', err);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            currentModalPhotos[slotName] = e.target.result;
+            renderPhotoSlot(slotName, e.target.result);
+        };
+        reader.readAsDataURL(file);
+    }
 }
 
 function renderPhotoSlot(slotName, url) {
@@ -1392,7 +1453,7 @@ function renderPhotoSlot(slotName, url) {
     if (url) {
         slot.classList.add('has-image');
         slot.innerHTML = `
-            <img src="${url}" alt="${titles[slotName]}" onclick="openLightbox('${url}', '${titles[slotName]}')">
+            <img src="${formatPhotoUrl(url)}" alt="${titles[slotName]}" onerror="handleImgError(this)" onclick="openLightbox('${url.replace(/'/g, "\\'")}', '${titles[slotName]}')">
             ${isAdmin ? `<button type="button" class="delete-btn" onclick="event.stopPropagation(); removeSlotPhoto('${slotName}')">&times;</button>` : ''}
             <div style="position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,0.7); font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; color: #fff;">
                 ${titles[slotName]}
