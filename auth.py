@@ -89,8 +89,8 @@ def get_session_secret() -> bytes:
         return DEFAULT_SESSION_SECRET.encode("utf-8")
 
 def create_admin_session() -> str:
-    """Generates a cryptographically signed HMAC token valid across all serverless lambda instances."""
-    exp = int(time.time()) + 86400 * 7  # 7 days validity
+    """Generates a cryptographically signed permanent HMAC token valid across all serverless lambda instances."""
+    exp = int(time.time()) + 86400 * 365 * 100  # 100 Years (Lifelong permanent validity)
     payload = f"admin:{exp}:{secrets.token_hex(8)}"
     payload_b64 = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("utf-8").rstrip("=")
     key = get_session_secret()
@@ -103,14 +103,11 @@ def create_admin_session() -> str:
     return token
 
 def validate_token(token: str) -> bool:
-    """Returns True if token exists in memory or has valid HMAC signature and has not expired."""
+    """Returns True if token exists in memory or has valid HMAC signature (Lifelong validity)."""
     if not token:
         return False
     if token in ACTIVE_SESSIONS:
-        session = ACTIVE_SESSIONS[token]
-        if time.time() - session.get("created_at", 0) <= 86400 * 7:
-            return True
-        del ACTIVE_SESSIONS[token]
+        return True
 
     try:
         parts = token.split(".")
