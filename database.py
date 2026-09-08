@@ -153,10 +153,19 @@ def seed_existing_reports(conn):
                 
                 # Associated HTML report filename
                 html_report = fname.replace(".json", ".html")
-                if not os.path.exists(os.path.join(base_dir, html_report)):
+                html_content = ""
+                html_full_path = os.path.join(base_dir, html_report)
+                if os.path.exists(html_full_path):
+                    try:
+                        with open(html_full_path, "r", encoding="utf-8") as hf:
+                            html_content = hf.read()
+                    except Exception:
+                        pass
+                else:
                     html_report = ""
                 
-                lap_id = f"LAP-{int(time.time() % 100000):05d}"
+                lap_hash = abs(hash(f"{serial}_{device_name}")) % 100000
+                lap_id = f"LAP-{lap_hash:05d}"
                 company = "UNICOMTIC"
                 complaints_json = json.dumps(["Routine Hardware Diagnostic Check"])
                 
@@ -165,13 +174,13 @@ def seed_existing_reports(conn):
                     id, company_name, customer_name, customer_phone,
                     device_name, model, serial_number, cpu, ram, storage, gpu,
                     battery_health, overall_status, service_status, complaints,
-                    report_filename, report_data, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    report_filename, report_data, report_html, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     lap_id, company, "Internal Lab", "+94 77 123 4567",
                     device_name, model, serial, cpu, ram, storage, gpu,
                     bat, status, "Completed", complaints_json,
-                    html_report, json.dumps(data),
+                    html_report, json.dumps(data), html_content,
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 ))
