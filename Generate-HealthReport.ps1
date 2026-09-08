@@ -11,7 +11,12 @@
 [CmdletBinding()]
 param (
     [string]$OutputDir = $PSScriptRoot,
-    [string]$Company = "Unassigned / Retail",
+    [string]$Company = "UNICOMTIC",
+    [string]$CustomerName = "",
+    [string]$CustomerPhone = "",
+    [string]$ServerUrl = "http://localhost:8080",
+    [string]$AdminPassword = "admin123",
+    [switch]$AutoUpload,
     [switch]$NoBrowserOpen
 )
 
@@ -1083,4 +1088,89 @@ Write-Host ""
 if (-not $NoBrowserOpen) {
     Write-Host "Opening report in your default web browser..." -ForegroundColor Yellow
     Start-Process $ReportPath
+}
+
+# =========================================================
+# Automatic Project Upload (Direct Sync to Dashboard)
+# =========================================================
+if ($AutoUpload -and $ServerUrl) {
+    Write-Host ""
+    Write-Host "[*] Syncing Diagnostic Report to Dashboard ($ServerUrl)..." -ForegroundColor Cyan
+    try {
+        $complaintsList = @()
+        if ($FailingHardwares) {
+            foreach ($fh in $FailingHardwares) {
+                if ($fh.Device) { $complaintsList += $fh.Device }
+            }
+        }
+        if ($Warnings) {
+            foreach ($w in $Warnings) {
+                $complaintsList += $w
+            }
+        }
+        if ($complaintsList.Count -eq 0) {
+            $complaintsList += "Hardware diagnostic scan completed."
+        }
+
+        $UploadPayload = @{
+            filename       = $ReportFileName
+            raw_content    = $HtmlReport
+            company_name   = if ($Company) { $Company } else { "UNICOMTIC" }
+            customer_name  = if ($CustomerName) { $CustomerName } else { "$CurrentUserName" }
+            customer_phone = $CustomerPhone
+            service_status = "Diagnosing"
+            admin_password = $AdminPassword
+            parsed         = @{
+                device_name    = $DeviceName
+                model          = "$Manufacturer $Model"
+                serial_number  = $SerialNumber
+                cpu            = "$CpuName"
+                ram            = "$TotalRamGB GB"
+                storage        = ($PhysicalDisks | ForEach-Object { "$($_.FriendlyName) ($($_.SizeGB) GB)" }) -join ", "
+                gpu            = (($GpuList | Select-Object -ExpandProperty Name) -join " + ")
+                battery_health = $BatteryHealthPercent
+                overall_status = if ($HealthScore -ge 80) { "Healthy" } elseif ($HealthScore -ge 50) { "Warning" } else { "Critical" }
+                complaints     = $complaintsList
+            }
+        }
+        
+        $JsonBody = $UploadPayload | ConvertTo-Json -Depth 6
+        $ApiUrl = "$ServerUrl/api/reports/upload-import".Replace("//api", "/api")
+        
+        $Response = Invoke-RestMethod -Uri $ApiUrl -Method Post -Body $JsonBody -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction Stop
+        
+        if ($Response.success) {
+            Write-Host "================================================================" -ForegroundColor Green
+            Write-Host " [SUCCESS] Report Automatically Added to Project Dashboard! " -ForegroundColor Green
+            Write-Host "================================================================" -ForegroundColor Green
+            Write-Host " Laptop ID    : $($Response.laptop.id)" -ForegroundColor White
+            Write-Host " Company      : $($Response.laptop.company_name)" -ForegroundColor White
+            Write-Host " Customer     : $($Response.laptop.customer_name)" -ForegroundColor White
+            if ($Response.gdrive -and $Response.gdrive.success) {
+                Write-Host " Google Drive : Synced successfully!" -ForegroundColor Green
+            }
+            Write-Host " Dashboard    : $ServerUrl/Dashboard.html" -ForegroundColor Cyan
+            Write-Host "================================================================" -ForegroundColor Green
+        } else {
+            Write-Host "[-] Upload Notice: $($Response.error)" -ForegroundColor Yellow
+        }
+    } catch {
+        $errMessage = $_.Exception.Message
+        try {
+            if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+                $jsonErr = $_.ErrorDetails.Message | ConvertFrom-Json
+                if ($jsonErr.error) { $errMessage = $jsonErr.error }
+            } elseif ($_.Exception.Response) {
+                $stream = $_.Exception.Response.GetResponseStream()
+                if ($stream) {
+                    $reader = [System.IO.StreamReader]::new($stream)
+                    $errBody = $reader.ReadToEnd()
+                    $jsonErr = $errBody | ConvertFrom-Json
+                    if ($jsonErr.error) { $errMessage = $jsonErr.error }
+                }
+            }
+        } catch {}
+        Write-Host "[-] Auto-sync notice: $errMessage" -ForegroundColor Yellow
+        Write-Host "    (Report file is safely saved locally at $ReportPath)" -ForegroundColor DarkGray
+    }
 }

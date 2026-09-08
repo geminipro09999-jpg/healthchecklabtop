@@ -515,9 +515,20 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
 
         # 8. Upload & Import Report (.html or .json) with Direct Form Confirmation
         if path == "/api/reports/upload-import":
-            if not self.is_admin():
-                return self.send_json({"error": "Admin authorization required to import reports"}, 401)
             body = self.read_json_body()
+            # Allow authorization via Bearer token OR admin_password in body
+            is_authed = self.is_admin()
+            if not is_authed:
+                admin_pwd = body.get("admin_password", "")
+                if admin_pwd:
+                    cfg = auth.load_config()
+                    salt = cfg.get("admin_salt", "")
+                    expected_hash = cfg.get("admin_password_hash", "")
+                    if auth.verify_password(admin_pwd, salt, expected_hash):
+                        is_authed = True
+
+            if not is_authed:
+                return self.send_json({"error": "Admin authorization required to import reports"}, 401)
             filename = body.get("filename", f"HealthReport_{int(time.time())}.html")
             raw_content = body.get("raw_content", "")
             company_name = body.get("company_name", "UNICOMTIC").strip() or "UNICOMTIC"
