@@ -62,7 +62,7 @@ def parse_html_report_text(html_content: str) -> dict:
     m_gpu = re.search(r'Graphics \(GPU\)</strong></td>\s*<td>([^<]+)</td>', html_content, re.IGNORECASE)
     data["gpu"] = m_gpu.group(1).strip() if m_gpu else ""
 
-    # Battery
+    # Battery & Cycle Count
     m_bat = re.search(r'Battery</strong></td>\s*<td>([^<]+)</td>', html_content, re.IGNORECASE)
     bat_val = 100
     if m_bat:
@@ -70,6 +70,13 @@ def parse_html_report_text(html_content: str) -> dict:
         if m_num:
             bat_val = int(m_num.group(1))
     data["battery_health"] = bat_val
+
+    m_cyc = re.search(r'Battery Cycle Count</span>\s*<span[^>]*>([^<]+)</span>', html_content, re.IGNORECASE)
+    if m_cyc:
+        data["battery_cycle_count"] = m_cyc.group(1).replace("Cycles", "").strip()
+    else:
+        m_cyc_chk = re.search(r'Cycles:\s*([^\s|<]+)', html_content, re.IGNORECASE)
+        data["battery_cycle_count"] = m_cyc_chk.group(1).strip() if m_cyc_chk else "N/A"
 
     # Health Score
     m_score = re.search(r'class="score-number">(\d+)', html_content, re.IGNORECASE)

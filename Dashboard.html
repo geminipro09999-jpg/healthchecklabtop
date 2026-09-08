@@ -1613,6 +1613,20 @@ function createLaptopCardHTML(l) {
                     <div class="spec-item"><span class="spec-label">RAM</span><span class="spec-value" title="${l.ram || ''}">${l.ram || 'N/A'}</span></div>
                     <div class="spec-item"><span class="spec-label">Storage</span><span class="spec-value" title="${l.storage || ''}">${l.storage || 'N/A'}</span></div>
                     <div class="spec-item"><span class="spec-label">GPU</span><span class="spec-value" title="${l.gpu || ''}">${l.gpu || 'N/A'}</span></div>
+                    <div class="spec-item" style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2);">
+                        <div>
+                            <span class="spec-label" style="color: var(--green);">🔋 Battery Health</span>
+                            <span class="spec-value" style="color: ${l.battery_health && l.battery_health < 60 ? 'var(--red)' : (l.battery_health && l.battery_health < 80 ? 'var(--amber)' : '#34d399')}; font-weight: 700;">
+                                ${l.battery_health !== undefined && l.battery_health !== null ? l.battery_health + '%' : 'N/A'}
+                            </span>
+                        </div>
+                        <div style="text-align: right;">
+                            <span class="spec-label">Cycle Count</span>
+                            <span class="spec-value" style="color: var(--accent); font-family: monospace;">
+                                ${l.report_data && l.report_data.battery_cycle_count && l.report_data.battery_cycle_count !== 'N/A' ? l.report_data.battery_cycle_count + ' cycles' : (l.battery_cycle_count ? l.battery_cycle_count + ' cycles' : 'Check Report')}
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="card-actions">
@@ -2230,6 +2244,15 @@ function parseHtmlReport(html) {
     const mBat = battery.match(/(\d+)%/);
     if (mBat) batVal = parseInt(mBat[1], 10);
 
+    let cycleCount = getDetail('Battery Cycle Count') || '';
+    if (cycleCount) {
+        cycleCount = cycleCount.replace(/cycles/i, '').trim();
+    }
+    if (!cycleCount) {
+        const mCyc = battery.match(/Cycles:\s*([^\s|]+)/i);
+        if (mCyc) cycleCount = mCyc[1].trim();
+    }
+
     return {
         device_name: deviceName,
         model: model,
@@ -2239,6 +2262,7 @@ function parseHtmlReport(html) {
         storage: storage,
         gpu: gpu,
         battery_health: batVal,
+        battery_cycle_count: cycleCount || 'N/A',
         overall_status: overallStatus,
         health_score: score,
         complaints: complaints
@@ -2266,6 +2290,7 @@ function parseJsonReport(text) {
         storage: data.disks || `${data.TotalStorage_GB || 0} GB`,
         gpu: Array.isArray(data.gpu) ? data.gpu.join(', ') : (data.gpu || ''),
         battery_health: parseInt(data.batteryHealthPercent || data.BatteryHealthPercent || 100, 10),
+        battery_cycle_count: data.batteryCycleCount || data.BatteryCycleCount || 'N/A',
         overall_status: status,
         health_score: score,
         complaints: complaints
@@ -2325,7 +2350,7 @@ function displayParsedReportConfirmation(filename, p) {
             <div><span style="color: var(--text-muted);">CPU:</span> ${escapeHtml(p.cpu || 'N/A')}</div>
             <div><span style="color: var(--text-muted);">RAM:</span> ${escapeHtml(p.ram || 'N/A')}</div>
             <div><span style="color: var(--text-muted);">Storage:</span> ${escapeHtml(p.storage || 'N/A')}</div>
-            <div><span style="color: var(--text-muted);">Battery:</span> ${p.battery_health}%</div>
+            <div><span style="color: var(--text-muted);">Battery:</span> <strong style="color: #34d399;">${p.battery_health}%</strong> ${p.battery_cycle_count && p.battery_cycle_count !== 'N/A' ? `(${escapeHtml(p.battery_cycle_count)} cycles)` : ''}</div>
         </div>
         ${p.complaints && p.complaints.length > 0 ? `
             <div style="margin-top: 8px; font-size: 0.76rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 6px; padding: 6px 10px; color: #fde68a;">

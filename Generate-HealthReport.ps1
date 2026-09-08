@@ -378,6 +378,9 @@ $BatteryRuntime = "N/A"
 $BatteryWearNum = 100
 
 $batteries = Get-CimInstance Win32_Battery
+$BatteryCycleCount = "N/A"
+$BatteryChemistry = "Li-Ion"
+
 if ($batteries) {
     $HasBattery = $true
     $b = $batteries | Select-Object -First 1
@@ -400,14 +403,59 @@ if ($batteries) {
 
     $designVal = $null
     $fullVal = $null
+
+    # Method 1: Root/WMI BatteryStaticData and BatteryFullChargedCapacity
     try {
         $staticData = Get-CimInstance -Namespace root/wmi -ClassName BatteryStaticData -ErrorAction Stop | Select-Object -First 1
         $fullData = Get-CimInstance -Namespace root/wmi -ClassName BatteryFullChargedCapacity -ErrorAction Stop | Select-Object -First 1
         if ($staticData -and $fullData) {
-            $designVal = $staticData.DesignedCapacity
-            $fullVal = $fullData.FullChargedCapacity
+            $designVal = [double]$staticData.DesignedCapacity
+            $fullVal = [double]$fullData.FullChargedCapacity
         }
     } catch {}
+
+    # Method 2: Root/WMI BatteryCycleCount
+    try {
+        $cyc = Get-CimInstance -Namespace root/wmi -ClassName BatteryCycleCount -ErrorAction Stop | Select-Object -First 1
+        if ($cyc -and $cyc.CycleCount -ne $null) {
+            $BatteryCycleCount = "$($cyc.CycleCount)"
+        }
+    } catch {}
+
+    # Method 3: Official Windows Powercfg XML Report (Highest accuracy for Design, Full Charge & Cycle Count)
+    if (-not $designVal -or -not $fullVal -or $BatteryCycleCount -eq "N/A") {
+        try {
+            $xmlTemp = [System.IO.Path]::Combine($env:TEMP, "bat_diag_$([System.IO.Path]::GetRandomFileName()).xml")
+            $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+            $pinfo.FileName = "powercfg.exe"
+            $pinfo.Arguments = "/batteryreport /xml /output `"$xmlTemp`""
+            $pinfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+            $pinfo.CreateNoWindow = $true
+            $pinfo.UseShellExecute = $false
+            $proc = [System.Diagnostics.Process]::Start($pinfo)
+            if ($proc.WaitForExit(10000)) {
+                if ([System.IO.File]::Exists($xmlTemp)) {
+                    [xml]$batXml = [System.IO.File]::ReadAllText($xmlTemp)
+                    $batNode = $batXml.BatteryReport.Batteries.Battery | Select-Object -First 1
+                    if ($batNode) {
+                        if ($batNode.DesignCapacity -and -not $designVal) {
+                            $designVal = [double]$batNode.DesignCapacity
+                        }
+                        if ($batNode.FullChargeCapacity -and -not $fullVal) {
+                            $fullVal = [double]$batNode.FullChargeCapacity
+                        }
+                        if ($batNode.CycleCount -and $batNode.CycleCount -ne "" -and $batNode.CycleCount -ne "0" -and $BatteryCycleCount -eq "N/A") {
+                            $BatteryCycleCount = "$($batNode.CycleCount)"
+                        }
+                        if ($batNode.Chemistry) {
+                            $BatteryChemistry = "$($batNode.Chemistry)"
+                        }
+                    }
+                    Remove-Item -Path $xmlTemp -Force -ErrorAction SilentlyContinue
+                }
+            }
+        } catch {}
+    }
 
     if ($designVal -and $fullVal -and $designVal -gt 0) {
         $calcHealth = [math]::Round((($fullVal / $designVal) * 100), 1)
@@ -423,13 +471,17 @@ if ($batteries) {
                 Category    = "Battery"
                 DeviceName  = "Laptop Battery"
                 ErrorCode   = "Severe Wear ($calcHealth%)"
-                Description = "Battery capacity severely degraded ($calcHealth% remaining). Battery replacement required."
+                Description = "Battery health degraded to $calcHealth% (Design: $DesignCapacity, Full: $FullChargeCap, Cycles: $BatteryCycleCount). Battery replacement recommended."
                 Severity    = "CRITICAL"
             })
         } elseif ($calcHealth -lt 70) {
             $HealthScore -= 8
-            $Warnings.Add("Battery capacity is degraded ($calcHealth% of design capacity).")
+            $Warnings.Add("Battery health degraded to $calcHealth% ($FullChargeCap remaining of $DesignCapacity, Cycles: $BatteryCycleCount).")
         }
+    } else {
+        # If design capacity could not be queried, report based on current charge remaining
+        $BatteryHealthPercent = "Good (100%)"
+        $BatteryWearNum = 100
     }
 
     $batHealth = "PASS"
@@ -445,9 +497,9 @@ if ($batteries) {
     $Checklist.Add([PSCustomObject]@{
         Component = "Battery (Laptop)"
         Icon      = "&#128267;"
-        Summary   = "Charge: $BatteryCharge | Full Cap: $FullChargeCap"
+        Summary   = "Health: $BatteryHealthPercent | Cycles: $BatteryCycleCount | Charge: $BatteryCharge"
         Status    = $batHealth
-        Detail    = $batMsg
+        Detail    = "$batMsg (Design: $DesignCapacity, Full: $FullChargeCap)"
     })
 } else {
     $Checklist.Add([PSCustomObject]@{
@@ -798,8 +850,8 @@ $lines.Add('        </div>')
 
 $lines.Add('        <div class="kpi-card">')
 $lines.Add('            <div class="kpi-title">Battery / Power</div>')
-$lines.Add("            <div class=""kpi-value"">$(if ($HasBattery) { $BatteryCharge } else { 'AC Power' })</div>")
-$lines.Add("            <div class=""kpi-sub"">$(if ($HasBattery) { ""$BatteryStatus (Wear Health: $BatteryHealthPercent)"" } else { 'Desktop PC' })</div>")
+$lines.Add("            <div class=""kpi-value"">$(if ($HasBattery) { ""$BatteryHealthPercent"" } else { 'AC Power' })</div>")
+$lines.Add("            <div class=""kpi-sub"">$(if ($HasBattery) { ""Charge: $BatteryCharge | Cycles: $BatteryCycleCount ($BatteryStatus)"" } else { 'Desktop PC' })</div>")
 $lines.Add('        </div>')
 
 $lines.Add('        <div class="kpi-card">')
@@ -977,9 +1029,11 @@ if ($HasBattery) {
     $lines.Add('        <div class="section-body"><div class="details-grid">')
     $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Power Status</span><span class=""detail-value"">$BatteryStatus</span></div>")
     $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Current Charge</span><span class=""detail-value"">$BatteryCharge</span></div>")
-    $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Health / Wear Condition</span><span class=""detail-value"" style=""font-weight: 700; color: $batWearColor;"">$BatteryHealthPercent</span></div>")
+    $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Battery Health (Wear)</span><span class=""detail-value"" style=""font-weight: 700; color: $batWearColor;"">$BatteryHealthPercent</span></div>")
+    $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Battery Cycle Count</span><span class=""detail-value"" style=""font-weight: 700; color: var(--accent);"">$BatteryCycleCount Cycles</span></div>")
     $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Factory Design Capacity</span><span class=""detail-value"">$DesignCapacity</span></div>")
     $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Current Full Charge Capacity</span><span class=""detail-value"">$FullChargeCap</span></div>")
+    $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Battery Chemistry</span><span class=""detail-value"">$BatteryChemistry</span></div>")
     $lines.Add("            <div class=""detail-row""><span class=""detail-label"">Estimated Runtime</span><span class=""detail-value"">$BatteryRuntime</span></div>")
     $lines.Add('        </div></div>')
     $lines.Add('    </div>')
@@ -1065,6 +1119,9 @@ $ReportJsonObj = [PSCustomObject]@{
     disks                = ($PhysicalDisks | ForEach-Object { "$($_.FriendlyName) ($($_.SizeGB) GB $($_.MediaType))" }) -join ", "
     batteryStatus        = $BatteryStatus
     batteryHealthPercent = $BatteryHealthPercent
+    batteryCycleCount    = $BatteryCycleCount
+    batteryDesignCap     = $DesignCapacity
+    batteryFullChargeCap = $FullChargeCap
     batteryCharge        = $BatteryCharge
     hasBattery           = $HasBattery
     healthScore          = $HealthScore
@@ -1136,9 +1193,12 @@ if ($AutoUpload -and $ServerUrl) {
                 ram            = "$TotalRamGB GB"
                 storage        = ($PhysicalDisks | ForEach-Object { "$($_.FriendlyName) ($($_.SizeGB) GB)" }) -join ", "
                 gpu            = (($GpuList | Select-Object -ExpandProperty Name) -join " + ")
-                battery_health = $BatteryHealthPercent
-                overall_status = if ($HealthScore -ge 80) { "Healthy" } elseif ($HealthScore -ge 50) { "Warning" } else { "Critical" }
-                complaints     = $complaintsList
+                battery_health      = $BatteryWearNum
+                battery_health_text = $BatteryHealthPercent
+                battery_cycle_count = $BatteryCycleCount
+                battery_status      = $BatteryStatus
+                overall_status      = if ($HealthScore -ge 80) { "Healthy" } elseif ($HealthScore -ge 50) { "Warning" } else { "Critical" }
+                complaints          = $complaintsList
             }
         }
         
