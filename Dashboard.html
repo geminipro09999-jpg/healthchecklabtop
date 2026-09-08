@@ -1706,16 +1706,26 @@ async function saveLaptop(event) {
 }
 
 async function deleteLaptop(id) {
-    if (!isAdmin) return;
+    if (!isAdmin) {
+        alert('🔐 Admin authorization required to delete laptops. Please log in.');
+        openLoginModal();
+        return;
+    }
     if (confirm(`Delete laptop record ${id} and all related data?`)) {
         try {
             const res = await fetch(`/api/laptops/${id}`, {
                 method: 'DELETE',
                 headers: getApiHeaders()
             });
-            const data = await res.json();
+            const data = await safeJson(res);
             if (res.ok && data.success) {
+                await loadCompanies();
                 await fetchLaptops();
+            } else if (res.status === 401) {
+                isAdmin = false;
+                updateAuthUI();
+                alert('⚠️ Admin session expired. Please log in with admin password.');
+                openLoginModal();
             } else {
                 alert('❌ ' + (data.error || 'Failed to delete'));
             }

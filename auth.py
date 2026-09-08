@@ -10,6 +10,8 @@ import json
 import hashlib
 import secrets
 import time
+import hmac
+import base64
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
@@ -76,9 +78,24 @@ def save_config(cfg: dict):
         pass
 
 ACTIVE_SESSIONS = {}
+DEFAULT_SESSION_SECRET = "cae1b803daaaab6ce3720f3cced8e22e1a93778f3b0ffc971e87550acec51d5d"
+
+def get_session_secret() -> bytes:
+    try:
+        cfg = load_config()
+        secret = cfg.get("session_secret") or DEFAULT_SESSION_SECRET
+        return secret.encode("utf-8")
+    except Exception:
+        return DEFAULT_SESSION_SECRET.encode("utf-8")
 
 def create_admin_session() -> str:
-    token = secrets.token_hex(32)
+    """Generates a cryptographically signed HMAC token valid across all serverless lambda instances."""
+    exp = int(time.time()) + 86400 * 7  # 7 days validity
+    payload = f"admin:{exp}:{secrets.token_hex(8)}"
+    payload_b64 = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("utf-8").rstrip("=")
+    key = get_session_secret()
+    sig = hmac.new(key, payload_b64.encode("utf-8"), hashlib.sha256).hexdigest()
+    token = f"{payload_b64}.{sig}"
     ACTIVE_SESSIONS[token] = {
         "created_at": time.time(),
         "role": "admin"
@@ -86,14 +103,34 @@ def create_admin_session() -> str:
     return token
 
 def validate_token(token: str) -> bool:
-    """Returns True if token exists and has not expired (24h validity)."""
-    if not token or token not in ACTIVE_SESSIONS:
+    """Returns True if token exists in memory or has valid HMAC signature and has not expired."""
+    if not token:
         return False
-    session = ACTIVE_SESSIONS[token]
-    if time.time() - session.get("created_at", 0) > 86400:
+    if token in ACTIVE_SESSIONS:
+        session = ACTIVE_SESSIONS[token]
+        if time.time() - session.get("created_at", 0) <= 86400 * 7:
+            return True
         del ACTIVE_SESSIONS[token]
+
+    try:
+        parts = token.split(".")
+        if len(parts) != 2:
+            return False
+        payload_b64, sig = parts
+        key = get_session_secret()
+        expected_sig = hmac.new(key, payload_b64.encode("utf-8"), hashlib.sha256).hexdigest()
+        if not secrets.compare_digest(sig, expected_sig):
+            return False
+
+        padding = "=" * (4 - len(payload_b64) % 4) if len(payload_b64) % 4 else ""
+        payload = base64.urlsafe_b64decode(payload_b64 + padding).decode("utf-8")
+        role, exp_str, _ = payload.split(":", 2)
+        if role == "admin" and int(exp_str) > time.time():
+            ACTIVE_SESSIONS[token] = {"created_at": time.time(), "role": "admin"}
+            return True
         return False
-    return True
+    except Exception:
+        return False
 
 def revoke_token(token: str):
     if token in ACTIVE_SESSIONS:
