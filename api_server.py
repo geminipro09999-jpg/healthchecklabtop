@@ -207,6 +207,15 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
             is_valid = auth.validate_token(token)
             return self.send_json({"isAdmin": is_valid, "role": "admin" if is_valid else "viewer"})
 
+        if path == "/api/server-info":
+            port = 8080
+            try:
+                if hasattr(self, 'server') and hasattr(self.server, 'server_port'):
+                    port = self.server.server_port
+            except Exception:
+                pass
+            return self.send_json({"success": True, "local_ip": get_local_ip(), "port": port})
+
         if path == "/api/companies":
             companies = database.get_companies()
             return self.send_json({"success": True, "companies": companies})

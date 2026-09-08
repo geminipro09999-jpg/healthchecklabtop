@@ -947,21 +947,60 @@
 </div>
 
 <!-- =========================================================
-     MODAL: 3 PHOTOS MANAGER (Screen, Lid, Base Tag)
+     MODAL: 3 PHOTOS MANAGER (Direct Mobile Camera & Live Cam)
      ========================================================= -->
 <div class="modal-backdrop" id="photoModal">
     <div class="modal-card">
         <div class="modal-header">
-            <h2>📷 Laptop 3-Photo Inspection (Direct Mobile Camera)</h2>
-            <button class="modal-close" onclick="closeModal('photoModal')">&times;</button>
+            <div>
+                <h2>📷 Laptop 3-Photo Inspection</h2>
+                <div id="photoModalLaptopTitle" style="font-size: 0.78rem; color: var(--text-muted);">Select machine</div>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                <button type="button" class="btn btn-amber" style="padding: 6px 11px; font-size: 0.8rem;" onclick="openPhoneConnectModal()" title="Connect Mobile Phone via QR Code">📱 Phone Camera (QR)</button>
+                <button type="button" class="btn btn-success" id="btnToggleLiveCam" style="padding: 6px 11px; font-size: 0.8rem;" onclick="toggleLiveCameraView()">📹 Live Camera</button>
+                <button class="modal-close" onclick="closeModal('photoModal')">&times;</button>
+            </div>
         </div>
         <div class="modal-body">
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
                 Required intake photos: <strong>1. Screen &amp; Keyboard</strong>, <strong>2. Top Outer Lid</strong>, <strong>3. Base / Serial Number Tag</strong>.
-                Photos are stored locally and synced to Google Drive in <code>Company / Device_Serial /</code>!
+                Tap any slot or use <strong>📹 Live Camera</strong> / <strong>📱 Phone Camera (QR)</strong> to take photos directly from your smartphone!
             </p>
 
             <input type="hidden" id="photoLaptopId">
+
+            <!-- Live Camera Viewfinder (On-Demand) -->
+            <div id="liveCameraSection" style="display: none; margin-bottom: 14px; background: #000; border: 2px solid var(--accent); border-radius: 12px; padding: 12px; text-align: center; position: relative;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.82rem; color: #fff;">
+                    <span id="activeSlotIndicator" style="font-weight: 700; color: var(--accent);">🎯 Target: 1. Screen &amp; Keyboard</span>
+                    <div style="display: flex; gap: 6px;">
+                        <button type="button" class="btn" style="padding: 4px 8px; font-size: 0.74rem;" onclick="switchCameraFacing()">🔄 Flip Camera</button>
+                        <button type="button" class="btn btn-danger" style="padding: 4px 8px; font-size: 0.74rem;" onclick="stopLiveCamera()">✖ Close Cam</button>
+                    </div>
+                </div>
+                
+                <div style="position: relative; width: 100%; max-height: 340px; overflow: hidden; border-radius: 8px; background: #111;">
+                    <video id="liveCamVideo" autoplay playsinline muted style="width: 100%; height: auto; max-height: 340px; object-fit: cover; display: block; margin: 0 auto;"></video>
+                    <!-- Reticle Outline -->
+                    <div style="position: absolute; top: 8%; left: 8%; right: 8%; bottom: 8%; border: 2px dashed rgba(56, 189, 248, 0.6); border-radius: 8px; pointer-events: none; display: flex; align-items: center; justify-content: center;">
+                        <span id="camReticleLabel" style="background: rgba(0,0,0,0.65); color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem;">Align laptop in box</span>
+                    </div>
+                </div>
+
+                <!-- Target Slot Selector Pills in Camera View -->
+                <div style="display: flex; gap: 6px; justify-content: center; margin-top: 10px; flex-wrap: wrap;">
+                    <button type="button" class="pill-btn" id="camSlotBtn-screen" onclick="selectCameraTargetSlot('screen')">1. 🖥️ Screen</button>
+                    <button type="button" class="pill-btn" id="camSlotBtn-top" onclick="selectCameraTargetSlot('top')">2. 💻 Top Lid</button>
+                    <button type="button" class="pill-btn" id="camSlotBtn-base" onclick="selectCameraTargetSlot('base')">3. 🏷️ Base Tag</button>
+                </div>
+
+                <div style="margin-top: 12px;">
+                    <button type="button" class="btn btn-primary" style="padding: 10px 28px; font-size: 1rem; border-radius: 30px; font-weight: 700; box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4);" onclick="snapLivePhoto()">
+                        📸 SNAP PHOTO
+                    </button>
+                </div>
+            </div>
 
             <div class="photo-slots-grid">
                 <!-- Slot 1: Screen & Keyboard -->
@@ -992,6 +1031,38 @@
             <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px;">
                 <button type="button" class="btn" onclick="closeModal('photoModal')">Cancel</button>
                 <button type="button" class="btn btn-primary" id="btnSavePhotos" onclick="savePhotosToServer()">☁️ Upload &amp; Sync Photos</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     MODAL: CONNECT MOBILE PHONE FOR CAMERA
+     ========================================================= -->
+<div class="modal-backdrop" id="phoneConnectModal">
+    <div class="modal-card" style="max-width: 440px; text-align: center;">
+        <div class="modal-header">
+            <h2>📱 Connect Mobile Phone Camera</h2>
+            <button class="modal-close" onclick="closeModal('phoneConnectModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
+                Scan this QR code with your phone camera or QR scanner to open this laptop's photo capture screen directly on your phone!
+            </p>
+            <div id="qrCodeContainer" style="background: #ffffff; padding: 14px; border-radius: 12px; display: inline-block; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                <img id="phoneConnectQR" src="" alt="Scan QR code with phone" style="width: 210px; height: 210px; display: block;">
+            </div>
+            <div style="font-size: 0.76rem; color: var(--accent); margin-bottom: 12px; word-break: break-all; background: var(--surface-card); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);" id="phoneConnectUrlText">
+            </div>
+            <div style="font-size: 0.78rem; color: #cbd5e1; text-align: left; line-height: 1.5; background: rgba(56,189,248,0.08); padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(56,189,248,0.2); margin-bottom: 14px;">
+                <strong>📲 How it works (எப்படி பயன்படுத்துவது):</strong><br>
+                1. உங்கள் மொபைல் கேமரா அல்லது Google Lens-ஐ QR Code நோக்கிப் பிடிக்கவும்.<br>
+                2. திறக்கும் லிங்கை கிளிக் செய்யவும் (தானாக Admin Login ஆகிவிடும்).<br>
+                3. உங்கள் போன் கேமரா மூலம் 3 படங்களை எடுத்து <strong>Upload &amp; Sync</strong> கொடுக்கவும்!
+            </div>
+            <div style="display: flex; gap: 8px; justify-content: center;">
+                <button type="button" class="btn btn-primary" onclick="copyPhoneConnectLink()">📋 Copy Mobile Link</button>
+                <button type="button" class="btn" onclick="closeModal('phoneConnectModal')">Close</button>
             </div>
         </div>
     </div>
@@ -1611,13 +1682,22 @@ function closeLightbox() {
 }
 
 /* =========================================================
-   PHOTO MANAGER & MOBILE CAMERA
+   PHOTO MANAGER & MOBILE LIVE CAMERA
    ========================================================= */
+let currentCameraStream = null;
+let currentCameraFacing = 'environment'; // Back camera on mobile phones
+let activeCameraSlot = 'screen';
+
 function openPhotoModal(laptopId) {
     const lap = allLaptops.find(x => x.id === laptopId);
     if (!lap) return;
 
     document.getElementById('photoLaptopId').value = laptopId;
+    const titleEl = document.getElementById('photoModalLaptopTitle');
+    if (titleEl) {
+        titleEl.textContent = `${lap.device_name} • ${lap.model || 'Laptop'} (SN: ${lap.serial_number || 'N/A'}) - ${lap.company_name}`;
+    }
+
     currentModalPhotos = {
         screen: lap.photo_screen || null,
         top: lap.photo_top || null,
@@ -1632,11 +1712,161 @@ function openPhotoModal(laptopId) {
     const saveBtn = document.getElementById('btnSavePhotos');
     if (saveBtn) saveBtn.style.display = isAdmin ? 'inline-flex' : 'none';
 
+    stopLiveCamera();
     document.getElementById('photoModal').classList.add('active');
+}
+
+async function startLiveCamera(slotName = 'screen') {
+    if (!isAdmin) {
+        openLoginModal();
+        return;
+    }
+    activeCameraSlot = slotName;
+    selectCameraTargetSlot(slotName);
+
+    const camSection = document.getElementById('liveCameraSection');
+    if (camSection) camSection.style.display = 'block';
+
+    const video = document.getElementById('liveCamVideo');
+    if (!video) return;
+
+    if (currentCameraStream) {
+        currentCameraStream.getTracks().forEach(t => t.stop());
+        currentCameraStream = null;
+    }
+
+    try {
+        const constraints = {
+            video: {
+                facingMode: { ideal: currentCameraFacing },
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+            },
+            audio: false
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        currentCameraStream = stream;
+        video.srcObject = stream;
+        await video.play();
+        const btnToggle = document.getElementById('btnToggleLiveCam');
+        if (btnToggle) btnToggle.textContent = '✖ Close Cam';
+    } catch (err) {
+        console.warn('getUserMedia failed, falling back to native file/camera picker:', err);
+        stopLiveCamera();
+        // Graceful fallback to native device camera app
+        const input = document.getElementById('input-photo-' + slotName);
+        if (input) input.click();
+    }
+}
+
+function stopLiveCamera() {
+    if (currentCameraStream) {
+        currentCameraStream.getTracks().forEach(t => t.stop());
+        currentCameraStream = null;
+    }
+    const camSection = document.getElementById('liveCameraSection');
+    if (camSection) camSection.style.display = 'none';
+    const video = document.getElementById('liveCamVideo');
+    if (video) video.srcObject = null;
+    const btnToggle = document.getElementById('btnToggleLiveCam');
+    if (btnToggle) btnToggle.textContent = '📹 Live Camera';
+}
+
+function toggleLiveCameraView() {
+    const camSection = document.getElementById('liveCameraSection');
+    if (camSection && camSection.style.display !== 'none') {
+        stopLiveCamera();
+    } else {
+        startLiveCamera(activeCameraSlot || 'screen');
+    }
+}
+
+async function switchCameraFacing() {
+    currentCameraFacing = currentCameraFacing === 'environment' ? 'user' : 'environment';
+    await startLiveCamera(activeCameraSlot);
+}
+
+function selectCameraTargetSlot(slotName) {
+    activeCameraSlot = slotName;
+    const names = {
+        screen: '1. 🖥️ Screen & Keyboard',
+        top: '2. 💻 Top Outer Lid',
+        base: '3. 🏷️ Base & Serial Tag'
+    };
+    const reticleLabels = {
+        screen: 'Align Laptop Screen & Keyboard',
+        top: 'Align Laptop Top Lid',
+        base: 'Align Laptop Base & Serial Sticker'
+    };
+    const ind = document.getElementById('activeSlotIndicator');
+    if (ind) ind.textContent = `🎯 Target: ${names[slotName] || slotName}`;
+    const ret = document.getElementById('camReticleLabel');
+    if (ret) ret.textContent = reticleLabels[slotName] || 'Align Laptop in Box';
+
+    ['screen', 'top', 'base'].forEach(s => {
+        const btn = document.getElementById(`camSlotBtn-${s}`);
+        if (btn) {
+            if (s === slotName) {
+                btn.style.background = 'var(--amber)';
+                btn.style.color = '#000';
+                btn.style.borderColor = 'var(--amber)';
+                btn.style.fontWeight = '700';
+            } else {
+                btn.style.background = 'rgba(255, 255, 255, 0.06)';
+                btn.style.color = 'var(--text)';
+                btn.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+                btn.style.fontWeight = '500';
+            }
+        }
+    });
+}
+
+async function snapLivePhoto() {
+    const video = document.getElementById('liveCamVideo');
+    if (!video || !video.videoWidth) {
+        alert('Camera is not ready yet. Please wait a moment.');
+        return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Compress JPEG
+    const b64 = canvas.toDataURL('image/jpeg', 0.85);
+    currentModalPhotos[activeCameraSlot] = b64;
+    renderPhotoSlot(activeCameraSlot, b64);
+
+    // Visual snap animation
+    video.style.opacity = '0.2';
+    setTimeout(() => { video.style.opacity = '1'; }, 180);
+
+    // Advance to next uncaptured slot
+    const slots = ['screen', 'top', 'base'];
+    const curIdx = slots.indexOf(activeCameraSlot);
+    const nextSlot = slots.find((s, idx) => idx > curIdx && !currentModalPhotos[s]);
+    if (nextSlot) {
+        selectCameraTargetSlot(nextSlot);
+    } else {
+        const allDone = slots.every(s => currentModalPhotos[s]);
+        if (allDone) {
+            alert('🎉 All 3 photos captured! Click "☁️ Upload & Sync Photos" below to save.');
+            stopLiveCamera();
+        }
+    }
 }
 
 function triggerPhotoCapture(slotName) {
     if (!isAdmin) return;
+    const camSection = document.getElementById('liveCameraSection');
+    // If live camera is open, switch target slot
+    if (camSection && camSection.style.display !== 'none') {
+        selectCameraTargetSlot(slotName);
+        return;
+    }
+    // Otherwise open native mobile camera / file picker
     const input = document.getElementById('input-photo-' + slotName);
     if (input) input.click();
 }
@@ -1684,7 +1914,7 @@ function renderPhotoSlot(slotName, url) {
         slot.innerHTML = `
             <div class="slot-icon">${icons[slotName]}</div>
             <div class="slot-title">${titles[slotName]}</div>
-            <div class="slot-desc">${isAdmin ? 'Tap to take photo' : 'No photo uploaded'}</div>
+            <div class="slot-desc">${isAdmin ? '📸 Tap to take photo' : 'No photo uploaded'}</div>
             <input type="file" id="input-photo-${slotName}" accept="image/*" capture="environment" style="display: none;" onchange="handlePhotoSelected(event, '${slotName}')">
         `;
     }
@@ -1693,6 +1923,55 @@ function renderPhotoSlot(slotName, url) {
 function removeSlotPhoto(slotName) {
     currentModalPhotos[slotName] = '';
     renderPhotoSlot(slotName, null);
+}
+
+/* =========================================================
+   CONNECT PHONE VIA QR CODE
+   ========================================================= */
+async function openPhoneConnectModal() {
+    const lapId = document.getElementById('photoLaptopId').value;
+    if (!lapId) {
+        alert('Please select a laptop record first.');
+        return;
+    }
+
+    let origin = window.location.origin;
+    // If currently on localhost or 127.0.0.1, attempt to query the LAN IP from /api/server-info
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        try {
+            const res = await fetch('/api/server-info');
+            const sinfo = await safeJson(res);
+            if (sinfo && sinfo.local_ip && sinfo.local_ip !== '127.0.0.1') {
+                origin = `http://${sinfo.local_ip}:${sinfo.port || 8080}`;
+            }
+        } catch (e) {}
+    }
+
+    let mobileUrl = `${origin}/Dashboard.html?upload_photos=${encodeURIComponent(lapId)}`;
+    if (authToken) {
+        mobileUrl += `&token=${encodeURIComponent(authToken)}`;
+    }
+
+    const qrImg = document.getElementById('phoneConnectQR');
+    if (qrImg) {
+        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(mobileUrl)}`;
+    }
+    const urlText = document.getElementById('phoneConnectUrlText');
+    if (urlText) {
+        urlText.textContent = mobileUrl;
+    }
+
+    document.getElementById('phoneConnectModal').classList.add('active');
+}
+
+function copyPhoneConnectLink() {
+    const urlText = document.getElementById('phoneConnectUrlText');
+    if (!urlText) return;
+    navigator.clipboard.writeText(urlText.textContent).then(() => {
+        alert('✅ Mobile phone link copied to clipboard!\n\nOpen this link on your smartphone to take photos.');
+    }).catch(() => {
+        prompt('Copy this link and open it on your phone:', urlText.textContent);
+    });
 }
 
 async function savePhotosToServer() {
@@ -2397,15 +2676,29 @@ function setFilter(filter) {
 }
 
 function closeModal(modalId) {
-    document.getElementById(modalId).classList.remove('active');
+    if (modalId === 'photoModal') {
+        stopLiveCamera();
+    }
+    const el = document.getElementById(modalId);
+    if (el) el.classList.remove('active');
 }
 
 /* =========================================================
    INITIALIZATION
    ========================================================= */
 window.addEventListener('DOMContentLoaded', async () => {
-    // Check if session timed out during inactivity while browser was closed
-    if (authToken) {
+    // Check URL parameters for direct mobile connect (?upload_photos=LAP-XXX&token=YYY)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenParam = urlParams.get('token') || urlParams.get('auth_token');
+    const photoTargetId = urlParams.get('upload_photos');
+
+    if (tokenParam) {
+        authToken = tokenParam;
+        localStorage.setItem('laptop_admin_token', authToken);
+        localStorage.setItem('laptop_last_activity', Date.now().toString());
+        isAdmin = true;
+    } else if (authToken) {
+        // Check if session timed out during inactivity while browser was closed
         const last = parseInt(localStorage.getItem('laptop_last_activity') || '0', 10);
         if (last > 0 && (Date.now() - last >= INACTIVITY_TIMEOUT_MS)) {
             authToken = null;
@@ -2421,6 +2714,16 @@ window.addEventListener('DOMContentLoaded', async () => {
     await loadCompanies();
     await fetchLaptops();
     await checkDriveStatus(false);
+
+    // If opened on phone via QR code or mobile link to capture photos
+    if (photoTargetId) {
+        setTimeout(() => {
+            openPhotoModal(photoTargetId);
+            setTimeout(() => {
+                startLiveCamera('screen');
+            }, 300);
+        }, 300);
+    }
 });
 </script>
 
