@@ -478,6 +478,30 @@
             background: var(--amber); color: #000; border-color: var(--amber);
         }
 
+        /* Upload Dropzone */
+        .upload-dropzone {
+            border: 2px dashed var(--accent);
+            background: rgba(56, 189, 248, 0.05);
+            border-radius: 12px;
+            padding: 24px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 14px;
+        }
+        .upload-dropzone:hover, .upload-dropzone.dragover {
+            background: rgba(56, 189, 248, 0.12);
+            border-color: #38bdf8;
+            transform: scale(1.01);
+        }
+        .parsed-preview-box {
+            background: var(--surface-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 14px;
+        }
+
         /* 3-Photo Slots */
         .photo-slots-grid {
             display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -705,18 +729,69 @@
      MODAL: IMPORT LOCAL HEALTH REPORT SCAN
      ========================================================= -->
 <div class="modal-backdrop" id="scansModal">
-    <div class="modal-card" style="max-width: 580px;">
+    <div class="modal-card" style="max-width: 620px;">
         <div class="modal-header">
-            <h2>⚡ Import Local Hardware Diagnostics</h2>
+            <h2>⚡ Import Diagnostic Report (.html / .json)</h2>
             <button class="modal-close" onclick="closeModal('scansModal')">&times;</button>
         </div>
         <div class="modal-body">
-            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px;">
-                Select a diagnostic scan generated on this system or client laptops to instantly create an inventory record.
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
+                Upload an HTML or JSON diagnostic report generated on any laptop. Hardware specs, health score, and warnings will be extracted automatically!
             </p>
-            <div id="localScansList">
-                <!-- Scans loaded via API -->
+
+            <!-- Dropzone for File Upload -->
+            <div class="upload-dropzone" id="reportDropzone" onclick="document.getElementById('reportFileInput').click()">
+                <div style="font-size: 2rem; margin-bottom: 4px;">📄 ⚡</div>
+                <strong style="font-size: 0.95rem; color: var(--accent); display: block;">Click to Upload or Drag &amp; Drop Diagnostic Report</strong>
+                <span style="font-size: 0.78rem; color: var(--text-muted); display: block; margin-top: 4px;">Supports <strong>.html</strong> and <strong>.json</strong> files from <code>Generate-HealthReport.ps1</code></span>
+                <input type="file" id="reportFileInput" accept=".html,.htm,.json" style="display: none;" onchange="handleReportFileSelected(event)">
             </div>
+
+            <!-- Parsed Confirmation Section (Revealed once file is loaded) -->
+            <div id="importConfirmSection" style="display: none;">
+                <div class="parsed-preview-box" id="parsedPreviewBox"></div>
+
+                <div class="form-section-title">🏢 Assign Client &amp; Customer Details (நிறுவன விபரம்)</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Company / Client Name</label>
+                        <input type="text" id="importCompanyName" placeholder="e.g. Unicom Tech Solutions" list="importCompanyList">
+                        <datalist id="importCompanyList"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Customer / Technician Name</label>
+                        <input type="text" id="importCustomerName" placeholder="e.g. Internal Lab / John Doe">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Customer Phone (Optional)</label>
+                        <input type="text" id="importCustomerPhone" placeholder="e.g. +94 77 123 4567">
+                    </div>
+                    <div class="form-group">
+                        <label>Initial Service Status</label>
+                        <select id="importServiceStatus">
+                            <option value="Diagnosing">Diagnosing / Intake</option>
+                            <option value="Received">Received</option>
+                            <option value="Completed">Completed</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
+                    <button type="button" class="btn" onclick="resetImportUpload()">Choose Another File</button>
+                    <button type="button" class="btn btn-primary" id="btnSubmitImport" onclick="submitUploadedReport()">⚡ Confirm &amp; Save to Inventory</button>
+                </div>
+            </div>
+
+            <!-- Server Scans Section (Local Workspace) -->
+            <div id="serverScansSection" style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px;">
+                <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">📂 Or Select Existing Local Server Scan:</div>
+                <div id="localScansList">
+                    <!-- Scans loaded via API -->
+                </div>
+            </div>
+
             <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
                 <button type="button" class="btn" onclick="closeModal('scansModal')">Close</button>
             </div>
@@ -916,6 +991,16 @@ let authToken = localStorage.getItem('laptop_admin_token') || null;
 let currentModalPhotos = { screen: null, top: null, base: null };
 
 const FALLBACK_IMAGE_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400" fill="%230f172a"><rect width="100%" height="100%" fill="%231e293b"/><text x="50%" y="43%" dominant-baseline="middle" text-anchor="middle" fill="%2364748b" font-family="system-ui" font-size="44">📷</text><text x="50%" y="58%" dominant-baseline="middle" text-anchor="middle" fill="%2394a3b8" font-family="system-ui" font-size="16" font-weight="600">Inspection Photo Pending</text><text x="50%" y="68%" dominant-baseline="middle" text-anchor="middle" fill="%2364748b" font-family="system-ui" font-size="13">Syncing with Storage</text></svg>`;
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
 
 function compressImage(file, maxDimension = 1200, quality = 0.82) {
     return new Promise((resolve, reject) => {
@@ -1643,37 +1728,345 @@ async function deleteLaptop(id) {
 /* =========================================================
    LOCAL SCANS IMPORT MODAL
    ========================================================= */
+/* =========================================================
+   DIAGNOSTIC REPORT IMPORT & UPLOAD MANAGER
+   ========================================================= */
+let currentUploadedReport = null;
+
+function parseHtmlReport(html) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+
+    function getDetail(label) {
+        const rows = doc.querySelectorAll('.detail-row');
+        for (const r of rows) {
+            const lbl = r.querySelector('.detail-label');
+            if (lbl && lbl.textContent.trim().toLowerCase().includes(label.toLowerCase())) {
+                const val = r.querySelector('.detail-value');
+                if (val) return val.textContent.trim();
+            }
+        }
+        return '';
+    }
+
+    function getChecklist(label) {
+        const trs = doc.querySelectorAll('table tbody tr');
+        for (const tr of trs) {
+            const th = tr.querySelector('td strong');
+            if (th && th.textContent.toLowerCase().includes(label.toLowerCase())) {
+                const tds = tr.querySelectorAll('td');
+                if (tds.length >= 2) return tds[1].textContent.trim();
+            }
+        }
+        return '';
+    }
+
+    let deviceName = getDetail('Device Name');
+    if (!deviceName) {
+        const h1 = doc.querySelector('.header-title h1');
+        if (h1) {
+            const parts = h1.textContent.split('•');
+            if (parts.length > 0) deviceName = parts[0].replace(/[^\w.-]/g, '').trim();
+        }
+    }
+    if (!deviceName) deviceName = 'Imported Laptop';
+
+    let model = getDetail('Manufacturer & Model') || getDetail('Model') || 'Standard PC';
+    let serial = getDetail('Serial Number') || 'N/A';
+    let cpu = getChecklist('Processor') || getDetail('Processor Model') || '';
+    let ram = getChecklist('Memory') || '';
+    if (!ram) {
+        const kpi = Array.from(doc.querySelectorAll('.kpi-card')).find(c => c.querySelector('.kpi-title')?.textContent.includes('Memory'));
+        if (kpi) ram = kpi.querySelector('.kpi-value')?.textContent.trim() || '';
+    }
+    let storage = getChecklist('Storage') || '';
+    let gpu = getChecklist('Graphics') || '';
+    let battery = getChecklist('Battery') || '100%';
+
+    let score = 100;
+    const scoreNum = doc.querySelector('.score-number');
+    if (scoreNum) {
+        const m = scoreNum.textContent.match(/(\d+)/);
+        if (m) score = parseInt(m[1], 10);
+    }
+
+    let overallStatus = 'Healthy';
+    if (score < 50) overallStatus = 'Critical';
+    else if (score < 80) overallStatus = 'Warning';
+
+    const complaints = [];
+    const lis = doc.querySelectorAll('.alert-warnings ul li, .alert-failing ul li');
+    lis.forEach(li => {
+        const t = li.textContent.trim();
+        if (t) complaints.push(t);
+    });
+    if (complaints.length === 0) {
+        complaints.push('Routine Hardware Diagnostic Check Completed');
+    }
+
+    let batVal = 100;
+    const mBat = battery.match(/(\d+)%/);
+    if (mBat) batVal = parseInt(mBat[1], 10);
+
+    return {
+        device_name: deviceName,
+        model: model,
+        serial_number: serial,
+        cpu: cpu,
+        ram: ram,
+        storage: storage,
+        gpu: gpu,
+        battery_health: batVal,
+        overall_status: overallStatus,
+        health_score: score,
+        complaints: complaints
+    };
+}
+
+function parseJsonReport(text) {
+    const data = JSON.parse(text);
+    const mfg = data.manufacturer || data.Manufacturer || '';
+    const mdl = data.model || data.Model || '';
+    const score = data.healthScore !== undefined ? data.healthScore : 100;
+    let status = 'Healthy';
+    if (score < 50) status = 'Critical';
+    else if (score < 80) status = 'Warning';
+
+    const complaints = (data.failingHardwares || []).concat(data.warnings || []);
+    if (complaints.length === 0) complaints.push('Diagnostic hardware scan completed.');
+
+    return {
+        device_name: data.deviceName || data.DeviceName || 'PC',
+        model: `${mfg} ${mdl}`.trim() || 'Standard PC',
+        serial_number: data.serialNumber || data.SerialNumber || 'N/A',
+        cpu: data.cpu || data.CPU || '',
+        ram: `${data.ramTotalGB || data.TotalRAM_GB || 0} GB`,
+        storage: data.disks || `${data.TotalStorage_GB || 0} GB`,
+        gpu: Array.isArray(data.gpu) ? data.gpu.join(', ') : (data.gpu || ''),
+        battery_health: parseInt(data.batteryHealthPercent || data.BatteryHealthPercent || 100, 10),
+        overall_status: status,
+        health_score: score,
+        complaints: complaints
+    };
+}
+
+function handleReportFileSelected(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    processReportFile(file);
+}
+
+function processReportFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const text = e.target.result;
+        let parsed = null;
+        try {
+            if (file.name.endsWith('.json')) {
+                parsed = parseJsonReport(text);
+            } else {
+                parsed = parseHtmlReport(text);
+            }
+        } catch (err) {
+            alert('❌ Failed to parse report file: ' + err.message);
+            return;
+        }
+
+        currentUploadedReport = {
+            filename: file.name,
+            rawContent: text,
+            parsed: parsed
+        };
+
+        displayParsedReportConfirmation(file.name, parsed);
+    };
+    reader.readAsText(file);
+}
+
+function displayParsedReportConfirmation(filename, p) {
+    let scoreBadge = 'badge-healthy';
+    if (p.overall_status === 'Critical') scoreBadge = 'badge-critical';
+    else if (p.overall_status === 'Warning') scoreBadge = 'badge-warning';
+
+    const prevBox = document.getElementById('parsedPreviewBox');
+    prevBox.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+            <div>
+                <strong style="font-size: 1.15rem; color: var(--text);">${escapeHtml(p.device_name)}</strong>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(p.model)} &bull; SN: <code style="color: var(--accent);">${escapeHtml(p.serial_number)}</code></div>
+            </div>
+            <span class="auth-badge ${scoreBadge}" style="font-size: 0.82rem; font-weight: 700;">
+                Score: ${p.health_score}/100 (${p.overall_status})
+            </span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-size: 0.78rem; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; margin-top: 6px;">
+            <div><span style="color: var(--text-muted);">CPU:</span> ${escapeHtml(p.cpu || 'N/A')}</div>
+            <div><span style="color: var(--text-muted);">RAM:</span> ${escapeHtml(p.ram || 'N/A')}</div>
+            <div><span style="color: var(--text-muted);">Storage:</span> ${escapeHtml(p.storage || 'N/A')}</div>
+            <div><span style="color: var(--text-muted);">Battery:</span> ${p.battery_health}%</div>
+        </div>
+        ${p.complaints && p.complaints.length > 0 ? `
+            <div style="margin-top: 8px; font-size: 0.76rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 6px; padding: 6px 10px; color: #fde68a;">
+                <strong>⚠️ Detected Issues:</strong> ${p.complaints.join(' • ')}
+            </div>
+        ` : ''}
+        <div style="font-size: 0.72rem; color: var(--accent); margin-top: 8px; font-family: monospace;">
+            📄 ${escapeHtml(filename)}
+        </div>
+    `;
+
+    // Pre-fill company list datalist
+    const dlist = document.getElementById('importCompanyList');
+    if (dlist) {
+        dlist.innerHTML = allCompanies.map(c => `<option value="${escapeHtml(c.name)}"></option>`).join('');
+    }
+
+    const compInput = document.getElementById('importCompanyName');
+    if (compInput) {
+        compInput.value = selectedCompany !== 'All' ? selectedCompany : (allCompanies[0] ? allCompanies[0].name : 'Unassigned / Retail');
+    }
+
+    const custInput = document.getElementById('importCustomerName');
+    if (custInput && !custInput.value) {
+        custInput.value = 'Internal Lab';
+    }
+
+    document.getElementById('reportDropzone').style.display = 'none';
+    document.getElementById('importConfirmSection').style.display = 'block';
+}
+
+function resetImportUpload() {
+    currentUploadedReport = null;
+    const finput = document.getElementById('reportFileInput');
+    if (finput) finput.value = '';
+    const confSec = document.getElementById('importConfirmSection');
+    if (confSec) confSec.style.display = 'none';
+    const dropzone = document.getElementById('reportDropzone');
+    if (dropzone) dropzone.style.display = 'block';
+}
+
+async function submitUploadedReport() {
+    if (!isAdmin) {
+        alert('Admin authorization required.');
+        return;
+    }
+    if (!currentUploadedReport) {
+        alert('Please choose or drop a diagnostic report file first.');
+        return;
+    }
+
+    const compName = document.getElementById('importCompanyName').value.trim() || 'Unassigned / Retail';
+    const custName = document.getElementById('importCustomerName').value.trim() || 'Internal Lab';
+    const custPhone = document.getElementById('importCustomerPhone').value.trim();
+    const serviceStatus = document.getElementById('importServiceStatus').value;
+
+    const btn = document.getElementById('btnSubmitImport');
+    btn.disabled = true;
+    btn.textContent = 'Saving & Syncing...';
+
+    try {
+        const res = await fetch('/api/reports/upload-import', {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify({
+                filename: currentUploadedReport.filename,
+                raw_content: currentUploadedReport.rawContent,
+                company_name: compName,
+                customer_name: custName,
+                customer_phone: custPhone,
+                service_status: serviceStatus,
+                parsed: currentUploadedReport.parsed
+            })
+        });
+
+        const data = await safeJson(res);
+        if (res.ok && data.success) {
+            alert('✅ Diagnostic Report imported successfully for ' + compName + '!' + (data.gdrive && data.gdrive.success ? '\n☁️ Google Drive Synced!' : ''));
+            closeModal('scansModal');
+            resetImportUpload();
+            await loadCompanies();
+            await fetchLaptops();
+        } else {
+            alert('❌ ' + (data.error || 'Failed to import report'));
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '⚡ Confirm & Save to Inventory';
+    }
+}
+
+function setupDropzone() {
+    const dropzone = document.getElementById('reportDropzone');
+    if (!dropzone || dropzone._hasEvents) return;
+    dropzone._hasEvents = true;
+
+    dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('dragover');
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove('dragover');
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+            processReportFile(e.dataTransfer.files[0]);
+        }
+    });
+}
+
 async function openLocalScansModal() {
     if (!isAdmin) {
         openLoginModal();
         return;
     }
+    resetImportUpload();
+    setupDropzone();
+
+    const dlist = document.getElementById('importCompanyList');
+    if (dlist) {
+        dlist.innerHTML = allCompanies.map(c => `<option value="${escapeHtml(c.name)}"></option>`).join('');
+    }
+    const compInput = document.getElementById('importCompanyName');
+    if (compInput) {
+        compInput.value = selectedCompany !== 'All' ? selectedCompany : (allCompanies[0] ? allCompanies[0].name : 'Unassigned / Retail');
+    }
+
     const container = document.getElementById('localScansList');
-    container.innerHTML = '<p style="color: var(--text-muted);">Scanning folder for reports...</p>';
+    container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.8rem;">Scanning workspace for reports...</p>';
     document.getElementById('scansModal').classList.add('active');
 
     try {
         const res = await fetch('/api/reports/local');
-        const data = await res.json();
+        const data = await safeJson(res);
         const reports = data.reports || [];
 
         if (reports.length === 0) {
-            container.innerHTML = '<p style="color: var(--text-muted);">No unimported diagnostic reports found in workspace folder.</p>';
+            container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.8rem;">No unimported reports found in workspace. Use the upload box above to select any report from your device!</p>';
             return;
         }
 
         container.innerHTML = reports.map(r => `
-            <div class="report-item">
+            <div class="report-item" style="background: var(--surface-card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <strong style="color: var(--text);">${r.deviceName}</strong>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">${r.model || 'Standard PC'} &bull; ${r.cpu || ''}</div>
-                    <div style="font-size: 0.72rem; color: var(--accent); font-family: monospace;">${r.filename}</div>
+                    <strong style="color: var(--text); font-size: 0.92rem;">${escapeHtml(r.deviceName)}</strong>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(r.model || 'Standard PC')} &bull; ${escapeHtml(r.cpu || '')}</div>
+                    <div style="font-size: 0.72rem; color: var(--accent); font-family: monospace;">${escapeHtml(r.filename)}</div>
                 </div>
-                <button class="btn btn-success" style="padding: 6px 12px; font-size: 0.78rem;" onclick="importSelectedScan('${r.filename}')">⚡ Import</button>
+                <button class="btn btn-success" style="padding: 6px 12px; font-size: 0.78rem;" onclick="importSelectedScan('${escapeHtml(r.filename)}')">⚡ Quick Import</button>
             </div>
         `).join('');
     } catch (err) {
-        container.innerHTML = '<p style="color: var(--red);">Error loading reports: ' + err.message + '</p>';
+        container.innerHTML = '<p style="color: var(--red); font-size: 0.8rem;">Error loading local reports: ' + err.message + '</p>';
     }
 }
 
@@ -1691,7 +2084,7 @@ async function importSelectedScan(filename) {
                 customer_name: 'Diagnostic Scan Import'
             })
         });
-        const data = await res.json();
+        const data = await safeJson(res);
         if (res.ok && data.success) {
             alert('✅ Diagnostic report imported successfully for ' + comp + '!');
             closeModal('scansModal');

@@ -14,6 +14,8 @@ import json
 import socket
 import base64
 import urllib.parse
+import re
+import time
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from datetime import datetime
 
@@ -21,6 +23,71 @@ import tempfile
 import auth
 import database
 import gdrive_sync
+
+def parse_html_report_text(html_content: str) -> dict:
+    """Extracts hardware specs, diagnostic checklist, and health score from HTML report."""
+    data = {}
+    
+    # Device Name
+    m_dev = re.search(r'Device Name</span>\s*<span[^>]*>([^<]+)</span>', html_content, re.IGNORECASE)
+    if m_dev:
+        data["device_name"] = m_dev.group(1).strip()
+    else:
+        m_title = re.search(r'<title>.*?-\s*([^<]+)</title>', html_content, re.IGNORECASE)
+        data["device_name"] = m_title.group(1).strip() if m_title else "Imported PC"
+
+    # Model
+    m_model = re.search(r'Manufacturer & Model</span>\s*<span[^>]*>([^<]+)</span>', html_content, re.IGNORECASE)
+    data["model"] = m_model.group(1).strip() if m_model else ""
+
+    # Serial
+    m_serial = re.search(r'Serial Number</span>\s*<span[^>]*>([^<]+)</span>', html_content, re.IGNORECASE)
+    data["serial_number"] = m_serial.group(1).strip() if m_serial else ""
+
+    # CPU
+    m_cpu = re.search(r'Processor \(CPU\)</strong></td>\s*<td>([^<]+)</td>', html_content, re.IGNORECASE)
+    if not m_cpu:
+        m_cpu = re.search(r'Processor Model</span>\s*<span[^>]*>([^<]+)</span>', html_content, re.IGNORECASE)
+    data["cpu"] = m_cpu.group(1).strip() if m_cpu else ""
+
+    # RAM
+    m_ram = re.search(r'Memory \(RAM\)</strong></td>\s*<td>([^<]+)</td>', html_content, re.IGNORECASE)
+    data["ram"] = m_ram.group(1).strip() if m_ram else ""
+
+    # Storage
+    m_storage = re.search(r'Storage \(SSD/HDD\)</strong></td>\s*<td>([^<]+)</td>', html_content, re.IGNORECASE)
+    data["storage"] = m_storage.group(1).strip() if m_storage else ""
+
+    # GPU
+    m_gpu = re.search(r'Graphics \(GPU\)</strong></td>\s*<td>([^<]+)</td>', html_content, re.IGNORECASE)
+    data["gpu"] = m_gpu.group(1).strip() if m_gpu else ""
+
+    # Battery
+    m_bat = re.search(r'Battery</strong></td>\s*<td>([^<]+)</td>', html_content, re.IGNORECASE)
+    bat_val = 100
+    if m_bat:
+        m_num = re.search(r'(\d+)%', m_bat.group(1))
+        if m_num:
+            bat_val = int(m_num.group(1))
+    data["battery_health"] = bat_val
+
+    # Health Score
+    m_score = re.search(r'class="score-number">(\d+)', html_content, re.IGNORECASE)
+    score = int(m_score.group(1)) if m_score else 100
+    data["health_score"] = score
+
+    if score >= 80:
+        data["overall_status"] = "Healthy"
+    elif score >= 50:
+        data["overall_status"] = "Warning"
+    else:
+        data["overall_status"] = "Critical"
+
+    # Warnings / Defects
+    warnings = re.findall(r'<li>([^<]+)</li>', html_content)
+    data["complaints"] = warnings if warnings else ["Diagnostic Health Check Completed"]
+
+    return data
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if os.environ.get("VERCEL") or not os.access(BASE_DIR, os.W_OK):
@@ -168,17 +235,28 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
             })
 
         if path == "/api/reports/local":
-            # List all generated HealthReport_*.json files available locally
+            # List all generated HealthReport_*.json and .html files available locally
             reports = []
-            for fname in os.listdir(BASE_DIR):
-                if fname.startswith("HealthReport_") and fname.endswith(".json"):
-                    fpath = os.path.join(BASE_DIR, fname)
-                    try:
-                        with open(fpath, "r", encoding="utf-8-sig") as f:
-                            data = json.load(f)
+            seen_bases = set()
+            for fname in sorted(os.listdir(BASE_DIR), reverse=True):
+                if fname.startswith("HealthReport_") and (fname.endswith(".json") or fname.endswith(".html")):
+                    base = fname.rsplit(".", 1)[0]
+                    if base in seen_bases:
+                        continue
+                    seen_bases.add(base)
+
+                    json_name = f"{base}.json"
+                    html_name = f"{base}.html"
+                    fpath_json = os.path.join(BASE_DIR, json_name)
+                    fpath_html = os.path.join(BASE_DIR, html_name)
+
+                    if os.path.exists(fpath_json):
+                        try:
+                            with open(fpath_json, "r", encoding="utf-8-sig") as f:
+                                data = json.load(f)
                             reports.append({
-                                "filename": fname,
-                                "html_filename": fname.replace(".json", ".html"),
+                                "filename": html_name if os.path.exists(fpath_html) else json_name,
+                                "html_filename": html_name if os.path.exists(fpath_html) else "",
                                 "deviceName": data.get("deviceName") or data.get("DeviceName", "Unknown"),
                                 "model": f"{data.get('manufacturer', '')} {data.get('model', '')}".strip(),
                                 "cpu": data.get("cpu", ""),
@@ -186,8 +264,27 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                                 "failingHardwares": data.get("failingHardwares", []),
                                 "warnings": data.get("warnings", [])
                             })
-                    except Exception:
-                        pass
+                            continue
+                        except Exception:
+                            pass
+
+                    if os.path.exists(fpath_html):
+                        try:
+                            with open(fpath_html, "r", encoding="utf-8") as f:
+                                html_text = f.read()
+                            p = parse_html_report_text(html_text)
+                            reports.append({
+                                "filename": html_name,
+                                "html_filename": html_name,
+                                "deviceName": p.get("device_name", "PC"),
+                                "model": p.get("model", ""),
+                                "cpu": p.get("cpu", ""),
+                                "healthScore": p.get("health_score", 100),
+                                "failingHardwares": [],
+                                "warnings": p.get("complaints", [])
+                            })
+                        except Exception:
+                            pass
             return self.send_json({"success": True, "reports": reports})
 
         # Static file serving (Dashboard.html, HTML reports, images)
@@ -396,7 +493,95 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 return self.send_json({"error": f"Failed to import report: {str(e)}"}, 500)
 
-        # 8. Sync Laptop to Google Drive on Demand (Admin only)
+        # 8. Upload & Import Report (.html or .json) with Direct Form Confirmation
+        if path == "/api/reports/upload-import":
+            if not self.is_admin():
+                return self.send_json({"error": "Admin authorization required to import reports"}, 401)
+            body = self.read_json_body()
+            filename = body.get("filename", f"HealthReport_{int(time.time())}.html")
+            raw_content = body.get("raw_content", "")
+            company_name = body.get("company_name", "Unassigned / Retail").strip() or "Unassigned / Retail"
+            cust_name = body.get("customer_name", "Internal Lab").strip() or "Internal Lab"
+            cust_phone = body.get("customer_phone", "").strip()
+            service_status = body.get("service_status", "Diagnosing").strip()
+
+            parsed = body.get("parsed") or {}
+            if not parsed and raw_content:
+                if filename.endswith(".json"):
+                    try:
+                        p_json = json.loads(raw_content)
+                        parsed = {
+                            "device_name": p_json.get("deviceName", "PC"),
+                            "model": f"{p_json.get('manufacturer', '')} {p_json.get('model', '')}".strip(),
+                            "serial_number": p_json.get("serialNumber", "N/A"),
+                            "cpu": p_json.get("cpu", ""),
+                            "ram": f"{p_json.get('ramTotalGB', 0)} GB",
+                            "storage": p_json.get("disks", ""),
+                            "gpu": p_json.get("gpu", ""),
+                            "battery_health": int(p_json.get("batteryHealthPercent", 100)),
+                            "overall_status": "Healthy" if p_json.get("healthScore", 100) >= 80 else ("Warning" if p_json.get("healthScore", 100) >= 50 else "Critical"),
+                            "complaints": p_json.get("failingHardwares", []) + p_json.get("warnings", [])
+                        }
+                    except Exception:
+                        pass
+                else:
+                    parsed = parse_html_report_text(raw_content)
+
+            # Save report file to disk if possible
+            saved_report_path = None
+            if raw_content:
+                try:
+                    save_dir = BASE_DIR if os.access(BASE_DIR, os.W_OK) else tempfile.gettempdir()
+                    saved_report_path = os.path.join(save_dir, filename)
+                    with open(saved_report_path, "w", encoding="utf-8") as rf:
+                        rf.write(raw_content)
+                except Exception as e:
+                    print(f"Notice: Could not write report file to disk: {e}")
+
+            complaints = parsed.get("complaints", [])
+            if isinstance(complaints, str):
+                complaints = [complaints]
+            if not complaints:
+                complaints = ["Hardware diagnostic scan completed."]
+
+            new_laptop = database.create_laptop({
+                "company_name": company_name,
+                "customer_name": cust_name,
+                "customer_phone": cust_phone,
+                "device_name": parsed.get("device_name", "Laptop"),
+                "model": parsed.get("model", "Standard PC"),
+                "serial_number": parsed.get("serial_number", "N/A"),
+                "cpu": parsed.get("cpu", ""),
+                "ram": parsed.get("ram", ""),
+                "storage": parsed.get("storage", ""),
+                "gpu": parsed.get("gpu", ""),
+                "battery_health": parsed.get("battery_health", 100),
+                "overall_status": parsed.get("overall_status", "Healthy"),
+                "service_status": service_status,
+                "complaints": complaints,
+                "report_filename": filename,
+                "report_data": parsed
+            })
+
+            # Sync to Google Drive
+            drive_result = None
+            if saved_report_path and os.path.exists(saved_report_path):
+                drive_res = gdrive_sync.sync_laptop_to_drive(new_laptop, report_path=saved_report_path)
+                if drive_res.get("success"):
+                    d_url = drive_res.get("laptop_folder_url", "")
+                    if d_url:
+                        database.update_laptop(new_laptop["id"], {"gdrive_folder_url": d_url})
+                        new_laptop["gdrive_folder_url"] = d_url
+                    drive_result = drive_res
+
+            return self.send_json({
+                "success": True,
+                "message": f"Report '{filename}' imported successfully for {company_name}",
+                "laptop": new_laptop,
+                "gdrive": drive_result
+            }, 201)
+
+        # 9. Sync Laptop to Google Drive on Demand (Admin only)
         if path.startswith("/api/gdrive/sync/"):
             if not self.is_admin():
                 return self.send_json({"error": "Admin authorization required"}, 401)
