@@ -284,6 +284,19 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(content)
                 return
 
+            # 4. Fallback: Search and download directly from Google Drive
+            try:
+                drive_bytes = gdrive_sync.find_file_bytes_in_drive(fname)
+                if drive_bytes:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(drive_bytes)))
+                    self.end_headers()
+                    self.wfile.write(drive_bytes)
+                    return
+            except Exception:
+                pass
+
             if path.startswith("/api/reports/html/"):
                 return self.send_json({"error": f"Report '{fname}' not found"}, 404)
 

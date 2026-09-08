@@ -226,6 +226,8 @@ def add_company(name: str):
         return False, "Company already exists"
 
 def get_laptops(company=None, search=None, status=None):
+    if os.environ.get("VERCEL"):
+        sync_db_from_gdrive_if_needed()
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -442,10 +444,35 @@ def update_laptop(laptop_id: str, data: dict):
     return get_laptop(laptop_id)
 
 def delete_laptop(laptop_id: str):
+    laptop = get_laptop(laptop_id)
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM laptops WHERE id = ?", (laptop_id,))
     deleted = cursor.rowcount > 0
     conn.commit()
     conn.close()
+    if deleted and laptop:
+        try:
+            import gdrive_sync
+            gdrive_sync.delete_laptop_from_drive(laptop)
+        except Exception:
+            pass
     return deleted
+
+def sync_db_from_gdrive_if_needed():
+    """Syncs database from Google Drive laptops_inventory.json if local DB has fewer laptops."""
+    try:
+        import gdrive_sync
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM laptops")
+        local_count = cursor.fetchone()[0]
+        conn.close()
+        
+        drive_laptops = gdrive_sync.get_master_inventory_from_drive()
+        if drive_laptops and len(drive_laptops) > local_count:
+            for lap in drive_laptops:
+                create_laptop(lap)
+            print(f"Synced {len(drive_laptops)} laptops from Google Drive master inventory.")
+    except Exception as e:
+        print(f"Notice: GDrive sync check: {e}")

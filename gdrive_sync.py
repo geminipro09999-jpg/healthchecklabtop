@@ -14,6 +14,7 @@ Root Folder (1cfYrNewvM1tmCumcV5pKEsq0fPvq-fGZ)
 
 import os
 import json
+import base64
 import mimetypes
 import logging
 import requests
@@ -32,10 +33,10 @@ _cached_token = None
 _cached_creds = None
 
 def get_access_token():
-    """Returns a valid Google OAuth2 access token (prioritizes user token.json, falls back to service_account.json)."""
+    """Returns a valid Google OAuth2 access token (prioritizes user token.json/token_info, falls back to service_account.json)."""
     global _cached_token, _cached_creds
 
-    # 1. Prioritize personal Google Account OAuth token (unlimited personal quota)
+    # 1. Prioritize personal Google Account OAuth token from disk
     if os.path.exists(TOKEN_FILE):
         try:
             creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
@@ -50,28 +51,63 @@ def get_access_token():
         except Exception as e:
             logger.warning(f"OAuth token refresh error: {e}")
 
-    # 2. Fallback to Service Account
-    cfg = load_config().get("gdrive", {})
+    # 1b. Prioritize personal Google Account OAuth token from env (Base64 or JSON)
+    b64_token = os.environ.get("GDRIVE_TOKEN_B64")
+    token_data = None
+    if b64_token:
+        try:
+            token_data = json.loads(base64.b64decode(b64_token).decode("utf-8"))
+        except Exception:
+            pass
+    if not token_data:
+        cfg = load_config().get("gdrive", {})
+        token_data = cfg.get("token_info") or (json.loads(os.environ["GDRIVE_TOKEN_JSON"]) if "GDRIVE_TOKEN_JSON" in os.environ else None)
+
+    if token_data:
+        try:
+            creds = Credentials.from_authorized_user_info(token_data, SCOPES)
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            if creds and creds.valid:
+                _cached_creds = creds
+                _cached_token = creds.token
+                return _cached_token, None
+        except Exception as e:
+            logger.warning(f"OAuth token info error: {e}")
+
+    # 2. Fallback to Service Account from disk
     json_path = cfg.get("service_account_json", "service_account.json")
     if not os.path.isabs(json_path):
         json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), json_path)
 
-    if not os.path.exists(json_path):
-        return None, "Neither token.json nor service_account.json found. Run Connect-GoogleDrive.bat."
+    if os.path.exists(json_path):
+        try:
+            if _cached_creds is None or not isinstance(_cached_creds, service_account.Credentials):
+                _cached_creds = service_account.Credentials.from_service_account_file(
+                    json_path, scopes=SCOPES
+                )
 
-    try:
-        if _cached_creds is None or not isinstance(_cached_creds, service_account.Credentials):
-            _cached_creds = service_account.Credentials.from_service_account_file(
-                json_path, scopes=SCOPES
-            )
+            if not _cached_creds.valid:
+                _cached_creds.refresh(Request())
 
-        if not _cached_creds.valid:
-            _cached_creds.refresh(Request())
+            _cached_token = _cached_creds.token
+            return _cached_token, None
+        except Exception as e:
+            logger.warning(f"Service account file error: {e}")
 
-        _cached_token = _cached_creds.token
-        return _cached_token, None
-    except Exception as e:
-        return None, f"Authentication error: {str(e)}"
+    # 2b. Fallback to Service Account from config/env
+    sa_data = cfg.get("service_account_info") or (json.loads(os.environ["GDRIVE_SERVICE_ACCOUNT_JSON"]) if "GDRIVE_SERVICE_ACCOUNT_JSON" in os.environ else None)
+    if sa_data:
+        try:
+            _cached_creds = service_account.Credentials.from_service_account_info(sa_data, scopes=SCOPES)
+            if not _cached_creds.valid:
+                _cached_creds.refresh(Request())
+            _cached_token = _cached_creds.token
+            return _cached_token, None
+        except Exception as e:
+            return None, f"Service account info error: {e}"
+
+    return None, "Neither token.json nor service_account.json found. Run Connect-GoogleDrive.bat."
 
 def test_drive_connection():
     """Tests if Google Drive API is reachable and credentials are valid."""
@@ -314,6 +350,12 @@ def sync_laptop_to_drive(laptop_data: dict, photo_paths: list = None, report_pat
             if bat_res:
                 uploaded_files.append(bat_res)
 
+        # 6. Update Master Inventory file in Google Drive Root
+        try:
+            update_laptop_in_master_inventory(laptop_data)
+        except Exception as inv_err:
+            logger.warning(f"Notice: Master inventory update error: {inv_err}")
+
         return {
             "success": True,
             "company_folder_id": company_folder_id,
@@ -344,6 +386,12 @@ def delete_laptop_from_drive(laptop_data: dict) -> dict:
     device_name = laptop_data.get("device_name", "Laptop").strip()
     serial_no = laptop_data.get("serial_number", "NoSerial").strip()
     laptop_folder_name = f"{device_name}_{serial_no}"
+
+    # Also remove from master inventory
+    try:
+        remove_laptop_from_master_inventory(laptop_data.get("id"))
+    except Exception:
+        pass
 
     headers = {"Authorization": f"Bearer {token}"}
     target_folder_id = None
@@ -377,4 +425,131 @@ def delete_laptop_from_drive(laptop_data: dict) -> dict:
     except Exception as e:
         logger.error(f"Error deleting laptop folder from Google Drive: {e}")
         return {"success": False, "error": str(e)}
+
+# =========================================================
+# MASTER INVENTORY & FILE RETRIEVAL (DRIVE AS CLOUD DB)
+# =========================================================
+INVENTORY_FILE_NAME = "laptops_inventory.json"
+
+def download_file_bytes(file_id: str) -> bytes:
+    """Downloads raw file content by file ID from Google Drive."""
+    token, err = get_access_token()
+    if not token:
+        return None
+    headers = {"Authorization": f"Bearer {token}"}
+    url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
+    try:
+        r = requests.get(url, headers=headers, timeout=25)
+        if r.status_code == 200:
+            return r.content
+    except Exception as e:
+        logger.error(f"Error downloading file {file_id}: {e}")
+    return None
+
+def get_master_inventory_from_drive() -> list:
+    """Reads laptops_inventory.json from the Root folder on Google Drive."""
+    token, err = get_access_token()
+    if not token:
+        return []
+    cfg = load_config().get("gdrive", {})
+    parent_id = cfg.get("parent_folder_id") or "1cfYrNewvM1tmCumcV5pKEsq0fPvq-fGZ"
+    headers = {"Authorization": f"Bearer {token}"}
+    query = f"name='{INVENTORY_FILE_NAME}' and '{parent_id}' in parents and trashed=false"
+    list_url = f"https://www.googleapis.com/drive/v3/files?q={requests.utils.quote(query)}&fields=files(id)"
+    try:
+        r = requests.get(list_url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            files = r.json().get("files", [])
+            if files:
+                raw = download_file_bytes(files[0]["id"])
+                if raw:
+                    return json.loads(raw.decode("utf-8"))
+    except Exception as e:
+        logger.error(f"Error fetching master inventory from Drive: {e}")
+    return []
+
+def save_master_inventory_to_drive(laptops_list: list) -> bool:
+    """Saves laptops_inventory.json into the Root folder on Google Drive."""
+    cfg = load_config().get("gdrive", {})
+    parent_id = cfg.get("parent_folder_id") or "1cfYrNewvM1tmCumcV5pKEsq0fPvq-fGZ"
+    try:
+        inv_bytes = json.dumps(laptops_list, indent=2, ensure_ascii=False).encode("utf-8")
+        res = upload_or_update_bytes(inv_bytes, INVENTORY_FILE_NAME, parent_id, mime_type="application/json; charset=UTF-8")
+        return bool(res)
+    except Exception as e:
+        logger.error(f"Error saving master inventory to Drive: {e}")
+        return False
+
+def update_laptop_in_master_inventory(laptop_data: dict) -> bool:
+    """Adds or updates a laptop record inside laptops_inventory.json in Google Drive."""
+    try:
+        inv = get_master_inventory_from_drive()
+        lap_id = laptop_data.get("id")
+        serial = (laptop_data.get("serial_number") or "").strip().lower()
+        dev_name = (laptop_data.get("device_name") or "").strip().lower()
+        
+        generic_serials = {"", "n/a", "none", "default string", "system serial number", "to be filled by o.e.m.", "0123456789"}
+        
+        found_idx = -1
+        for idx, item in enumerate(inv):
+            if lap_id and item.get("id") == lap_id:
+                found_idx = idx
+                break
+            if serial and serial not in generic_serials and (item.get("serial_number") or "").strip().lower() == serial:
+                found_idx = idx
+                break
+            if dev_name and (item.get("device_name") or "").strip().lower() == dev_name:
+                comp = (laptop_data.get("company_name") or "").strip().lower()
+                if comp and (item.get("company_name") or "").strip().lower() == comp:
+                    found_idx = idx
+                    break
+
+        clean_data = dict(laptop_data)
+        # Avoid huge strings in summary JSON
+        if "report_html" in clean_data and len(clean_data.get("report_html") or "") > 300:
+            clean_data["report_html"] = ""
+        if "battery_report_html" in clean_data and len(clean_data.get("battery_report_html") or "") > 300:
+            clean_data["battery_report_html"] = ""
+
+        if found_idx >= 0:
+            inv[found_idx].update(clean_data)
+        else:
+            inv.append(clean_data)
+
+        return save_master_inventory_to_drive(inv)
+    except Exception as e:
+        logger.error(f"Error updating laptop in master inventory: {e}")
+        return False
+
+def remove_laptop_from_master_inventory(laptop_id: str) -> bool:
+    """Removes a laptop from laptops_inventory.json in Google Drive."""
+    if not laptop_id:
+        return True
+    try:
+        inv = get_master_inventory_from_drive()
+        new_inv = [item for item in inv if item.get("id") != laptop_id]
+        if len(new_inv) != len(inv):
+            return save_master_inventory_to_drive(new_inv)
+        return True
+    except Exception as e:
+        logger.error(f"Error removing laptop from master inventory: {e}")
+        return False
+
+def find_file_bytes_in_drive(file_name: str) -> bytes:
+    """Finds any file by name in the Drive hierarchy and returns its bytes."""
+    token, err = get_access_token()
+    if not token or not file_name:
+        return None
+    headers = {"Authorization": f"Bearer {token}"}
+    query = f"name='{file_name}' and trashed=false"
+    list_url = f"https://www.googleapis.com/drive/v3/files?q={requests.utils.quote(query)}&fields=files(id,name)"
+    try:
+        r = requests.get(list_url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            files = r.json().get("files", [])
+            if files:
+                return download_file_bytes(files[0]["id"])
+    except Exception:
+        pass
+    return None
 
