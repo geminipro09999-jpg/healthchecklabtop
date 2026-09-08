@@ -358,7 +358,7 @@ def create_laptop(data: dict):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     cursor.execute("""
-    INSERT INTO laptops (
+    INSERT OR REPLACE INTO laptops (
         id, company_name, customer_name, customer_phone,
         device_name, model, serial_number, cpu, ram, storage, gpu,
         battery_health, overall_status, service_status, complaints,
