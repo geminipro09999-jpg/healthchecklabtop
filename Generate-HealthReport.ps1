@@ -1162,6 +1162,7 @@ $lines.Add('</html>')
 
 # Save HTML File
 [System.IO.File]::WriteAllLines($ReportPath, $lines, [System.Text.Encoding]::UTF8)
+$HtmlReport = [System.IO.File]::ReadAllText($ReportPath)
 
 # Save Structured JSON File for Dashboard Import
 $JsonFileName = "HealthReport_${DeviceName}_${FileNameTimestamp}.json"

@@ -5,8 +5,12 @@
       "destination": "/api/index.py?__path=/api/:match*"
     },
     {
-      "source": "/HealthReport_:match*.html",
-      "destination": "/api/index.py?__path=/api/reports/html/HealthReport_:match*.html"
+      "source": "/(HealthReport_.*\\.html)",
+      "destination": "/api/index.py?__path=/api/reports/html/$1"
+    },
+    {
+      "source": "/(BatteryReport_.*\\.html)",
+      "destination": "/api/index.py?__path=/api/reports/html/$1"
     },
     {
       "source": "/",
