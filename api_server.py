@@ -633,16 +633,59 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
             if not complaints:
                 complaints = ["Hardware diagnostic scan completed."]
 
-            # Duplicate check: prevent duplicate machine records
+            # Duplicate check: update existing machine if already registered
             existing = database.find_duplicate_laptop(
                 serial_number=parsed.get("serial_number"),
                 device_name=parsed.get("device_name"),
                 company_name=company_name
             )
             if existing:
+                updated_fields = {
+                    "customer_name": cust_name if cust_name else existing.get("customer_name", ""),
+                    "customer_phone": cust_phone if cust_phone else existing.get("customer_phone", ""),
+                    "cpu": parsed.get("cpu", existing.get("cpu", "")),
+                    "ram": parsed.get("ram", existing.get("ram", "")),
+                    "storage": parsed.get("storage", existing.get("storage", "")),
+                    "gpu": parsed.get("gpu", existing.get("gpu", "")),
+                    "battery_health": parsed.get("battery_health", existing.get("battery_health", 100)),
+                    "overall_status": parsed.get("overall_status", "Healthy"),
+                    "complaints": complaints,
+                    "report_filename": filename,
+                    "report_data": parsed,
+                    "report_html": raw_content,
+                    "battery_report_filename": bat_filename,
+                    "battery_report_html": bat_raw,
+                    "battery_cycle_count": str(bat_cycle)
+                }
+                updated_laptop = database.update_laptop(existing["id"], updated_fields)
+
+                # Sync to Google Drive
+                drive_result = None
+                try:
+                    drive_res = gdrive_sync.sync_laptop_to_drive(
+                        updated_laptop,
+                        report_path=saved_report_path,
+                        report_html_content=raw_content,
+                        report_filename=filename,
+                        battery_report_path=saved_bat_path,
+                        battery_report_content=bat_raw,
+                        battery_report_filename=bat_filename
+                    )
+                    if drive_res.get("success"):
+                        d_url = drive_res.get("laptop_folder_url", "")
+                        if d_url:
+                            database.update_laptop(updated_laptop["id"], {"gdrive_folder_url": d_url})
+                            updated_laptop["gdrive_folder_url"] = d_url
+                        drive_result = drive_res
+                except Exception as d_err:
+                    print(f"Notice: Google Drive sync skipped: {d_err}")
+
                 return self.send_json({
-                    "error": f"⚠️ Duplicate Machine Rejected: Machine '{parsed.get('device_name')}' (Serial: {parsed.get('serial_number') or 'N/A'}) already exists in inventory under '{existing.get('company_name')}' (ID: {existing.get('id')}). Same machine cannot be uploaded again."
-                }, 409)
+                    "success": True,
+                    "message": f"Laptop '{existing['id']}' ({parsed.get('device_name')}) refreshed with latest diagnostic scan.",
+                    "laptop": updated_laptop,
+                    "gdrive": drive_result
+                }, 200)
 
             new_laptop = database.create_laptop({
                 "company_name": company_name,
