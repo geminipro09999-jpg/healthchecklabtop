@@ -71,12 +71,18 @@ def init_db():
     
     conn.commit()
     
-    # Seed default company if none exist
+    # Seed default companies if none exist
     cursor.execute("SELECT COUNT(*) FROM companies")
     if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT OR IGNORE INTO companies (name) VALUES (?)", ("UNICOMTIC",))
         cursor.execute("INSERT OR IGNORE INTO companies (name) VALUES (?)", ("Unassigned / Retail",))
-        cursor.execute("INSERT OR IGNORE INTO companies (name) VALUES (?)", ("Unicom Tech Solutions",))
         conn.commit()
+
+    # Migration: Rename 'Unicom Tech Solutions' to 'UNICOMTIC'
+    cursor.execute("UPDATE companies SET name = 'UNICOMTIC' WHERE name = 'Unicom Tech Solutions'")
+    cursor.execute("UPDATE laptops SET company_name = 'UNICOMTIC' WHERE company_name = 'Unicom Tech Solutions'")
+    cursor.execute("INSERT OR IGNORE INTO companies (name) VALUES (?)", ("UNICOMTIC",))
+    conn.commit()
     
     # Seed with existing generated report if laptops table is empty
     cursor.execute("SELECT COUNT(*) FROM laptops")
@@ -126,7 +132,7 @@ def seed_existing_reports(conn):
                     html_report = ""
                 
                 lap_id = f"LAP-{int(time.time() % 100000):05d}"
-                company = "Unicom Tech Solutions"
+                company = "UNICOMTIC"
                 complaints_json = json.dumps(["Routine Hardware Diagnostic Check"])
                 
                 cursor.execute("""
@@ -158,7 +164,13 @@ def get_companies():
         FROM companies c
         LEFT JOIN laptops l ON c.name = l.company_name
         GROUP BY c.id, c.name
-        ORDER BY c.name ASC
+        ORDER BY 
+            CASE 
+                WHEN c.name = 'UNICOMTIC' THEN 0 
+                WHEN c.name = 'Unassigned / Retail' THEN 2 
+                ELSE 1 
+            END, 
+            c.name ASC
     """)
     rows = cursor.fetchall()
     conn.close()
@@ -276,7 +288,7 @@ def create_laptop(data: dict):
     cursor = conn.cursor()
     
     lap_id = data.get("id") or f"LAP-{int(time.time() % 100000):05d}"
-    company = data.get("company_name", "Unassigned / Retail").strip() or "Unassigned / Retail"
+    company = data.get("company_name", "UNICOMTIC").strip() or "UNICOMTIC"
     
     # Auto-add company if doesn't exist
     cursor.execute("INSERT OR IGNORE INTO companies (name) VALUES (?)", (company,))

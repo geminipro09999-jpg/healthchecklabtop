@@ -625,11 +625,12 @@
 
     <!-- Toolbar: Company Filter, Search, Status Filter -->
     <div class="toolbar">
-        <!-- Company Selector Dropdown -->
-        <div class="company-filter-box">
+        <!-- Company Selector Dropdown & Add Company Button -->
+        <div class="company-filter-box" style="display: flex; gap: 8px; align-items: center;">
             <select id="companySelectFilter" onchange="onCompanyFilterChanged(this.value)">
                 <option value="All">🏢 All Companies / Clients</option>
             </select>
+            <button id="btnAddCompanyToolbarBtn" class="btn btn-amber admin-only" style="display: none; padding: 7px 12px; font-size: 0.8rem; white-space: nowrap;" onclick="openAddCompanyModal()" title="Add New Company / Client">🏢 ➕ Add Company</button>
         </div>
 
         <div class="search-box">
@@ -726,6 +727,33 @@
 </div>
 
 <!-- =========================================================
+     MODAL: ADD NEW COMPANY / CLIENT
+     ========================================================= -->
+<div class="modal-backdrop" id="companyModal">
+    <div class="modal-card" style="max-width: 420px;">
+        <div class="modal-header">
+            <h2>🏢 ➕ Add New Company / Client</h2>
+            <button class="modal-close" onclick="closeModal('companyModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px;">
+                Enter client organization or company name (e.g. UNICOMTIC, Dialog, Virtusa) to organize laptop records and Google Drive folders.
+            </p>
+            <form id="addCompanyForm" onsubmit="submitNewCompany(event)">
+                <div class="form-group">
+                    <label>Company / Client Name <span style="color:var(--red);">*</span> (நிறுவன பெயர்)</label>
+                    <input type="text" id="newCompanyNameInput" required placeholder="e.g. UNICOMTIC" autocomplete="organization">
+                </div>
+                <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
+                    <button type="button" class="btn" onclick="closeModal('companyModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">➕ Save Company</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
      MODAL: IMPORT LOCAL HEALTH REPORT SCAN
      ========================================================= -->
 <div class="modal-backdrop" id="scansModal">
@@ -751,16 +779,18 @@
             <div id="importConfirmSection" style="display: none;">
                 <div class="parsed-preview-box" id="parsedPreviewBox"></div>
 
-                <div class="form-section-title">🏢 Assign Client &amp; Customer Details (நிறுவன விபரம்)</div>
+                <div class="form-section-title">🏢 Assign Client &amp; Customer Details (நிறுவன &amp; பயனர் விபரம்)</div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Company / Client Name</label>
-                        <input type="text" id="importCompanyName" placeholder="e.g. Unicom Tech Solutions" list="importCompanyList">
-                        <datalist id="importCompanyList"></datalist>
+                        <label>Company / Client Name <span style="color:var(--red);">*</span> (நிறுவனம்)</label>
+                        <select id="importCompanySelect" onchange="handleImportCompanyChange(this.value)" style="width: 100%; padding: 9px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.88rem;">
+                            <!-- Populated dynamically with all companies -->
+                        </select>
+                        <input type="text" id="importNewCompanyInput" placeholder="✍️ Type new company name..." style="display: none; margin-top: 8px;">
                     </div>
                     <div class="form-group">
-                        <label>Customer / Technician Name</label>
-                        <input type="text" id="importCustomerName" placeholder="e.g. Internal Lab / John Doe">
+                        <label>Customer / User Name <span style="color:var(--red);">*</span> (பயனர் / உரிமையாளர் பெயர்)</label>
+                        <input type="text" id="importCustomerName" placeholder="e.g. John Doe, Kamalanathan" required>
                     </div>
                 </div>
                 <div class="form-row">
@@ -1223,12 +1253,76 @@ function updateCompanyDropdowns() {
     let opts = '<option value="All">🏢 All Companies / Clients</option>';
     let datalistOpts = '';
     allCompanies.forEach(c => {
-        opts += `<option value="${c.name}">${c.name} (${c.laptop_count || 0})</option>`;
-        datalistOpts += `<option value="${c.name}"></option>`;
+        opts += `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)} (${c.laptop_count || 0})</option>`;
+        datalistOpts += `<option value="${escapeHtml(c.name)}"></option>`;
     });
-    filterSelect.innerHTML = opts;
-    filterSelect.value = selectedCompany;
-    datalist.innerHTML = datalistOpts;
+    if (filterSelect) {
+        filterSelect.innerHTML = opts;
+        filterSelect.value = selectedCompany;
+    }
+    if (datalist) {
+        datalist.innerHTML = datalistOpts;
+    }
+}
+
+function openAddCompanyModal() {
+    if (!isAdmin) {
+        openLoginModal();
+        return;
+    }
+    const inp = document.getElementById('newCompanyNameInput');
+    if (inp) inp.value = '';
+    document.getElementById('companyModal').classList.add('active');
+    setTimeout(() => { if (inp) inp.focus(); }, 120);
+}
+
+async function submitNewCompany(event) {
+    event.preventDefault();
+    if (!isAdmin) {
+        alert('❌ Admin authorization required.');
+        return;
+    }
+    const inp = document.getElementById('newCompanyNameInput');
+    const name = (inp ? inp.value : '').trim();
+    if (!name) {
+        alert('Please enter a valid company name.');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/companies', {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify({ name })
+        });
+        const data = await safeJson(res);
+        if (res.ok && data.success) {
+            closeModal('companyModal');
+            alert(`✅ Company "${name}" added successfully!`);
+            await loadCompanies();
+            // Automatically switch filter to the newly created company
+            selectedCompany = name;
+            const filterSelect = document.getElementById('companySelectFilter');
+            if (filterSelect) filterSelect.value = name;
+            await fetchLaptops();
+        } else {
+            alert('❌ ' + (data.error || 'Failed to add company'));
+        }
+    } catch (err) {
+        alert('Connection error: ' + err.message);
+    }
+}
+
+function handleImportCompanyChange(val) {
+    const newCompInput = document.getElementById('importNewCompanyInput');
+    if (!newCompInput) return;
+    if (val === '__NEW__') {
+        newCompInput.style.display = 'block';
+        newCompInput.focus();
+    } else {
+        newCompInput.style.display = 'none';
+        newCompInput.value = '';
+    }
 }
 
 function onCompanyFilterChanged(val) {
@@ -1648,7 +1742,7 @@ function openAddLaptopModal() {
     document.getElementById('modalTitle').textContent = '📱 ➕ New Customer Job & Complaints';
     document.getElementById('laptopForm').reset();
     document.getElementById('editLaptopId').value = '';
-    document.getElementById('formCompanyName').value = selectedCompany !== 'All' ? selectedCompany : 'Unassigned / Retail';
+    document.getElementById('formCompanyName').value = selectedCompany !== 'All' ? selectedCompany : 'UNICOMTIC';
     document.getElementById('laptopModal').classList.add('active');
 }
 
@@ -2005,20 +2099,33 @@ function displayParsedReportConfirmation(filename, p) {
         }
     }
 
-    // Pre-fill company list datalist
-    const dlist = document.getElementById('importCompanyList');
-    if (dlist) {
-        dlist.innerHTML = allCompanies.map(c => `<option value="${escapeHtml(c.name)}"></option>`).join('');
-    }
+    // Populate company select dropdown
+    const compSelect = document.getElementById('importCompanySelect');
+    if (compSelect) {
+        let opts = '';
+        allCompanies.forEach(c => {
+            opts += `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`;
+        });
+        opts += `<option value="__NEW__">➕ Add New Company...</option>`;
+        compSelect.innerHTML = opts;
 
-    const compInput = document.getElementById('importCompanyName');
-    if (compInput) {
-        compInput.value = selectedCompany !== 'All' ? selectedCompany : (allCompanies[0] ? allCompanies[0].name : 'Unassigned / Retail');
+        let defaultChoice = '';
+        if (selectedCompany && selectedCompany !== 'All') {
+            defaultChoice = selectedCompany;
+        } else if (allCompanies.some(c => c.name === 'UNICOMTIC')) {
+            defaultChoice = 'UNICOMTIC';
+        } else if (allCompanies.length > 0) {
+            defaultChoice = allCompanies[0].name;
+        }
+        if (defaultChoice) compSelect.value = defaultChoice;
+        handleImportCompanyChange(compSelect.value);
     }
 
     const custInput = document.getElementById('importCustomerName');
-    if (custInput && !custInput.value) {
-        custInput.value = 'Internal Lab';
+    if (custInput) {
+        custInput.value = '';
+        custInput.placeholder = 'e.g. John Doe, Kamalanathan';
+        setTimeout(() => { custInput.focus(); }, 120);
     }
 
     document.getElementById('reportDropzone').style.display = 'none';
@@ -2033,6 +2140,11 @@ function resetImportUpload() {
     if (confSec) confSec.style.display = 'none';
     const dropzone = document.getElementById('reportDropzone');
     if (dropzone) dropzone.style.display = 'block';
+    const newCompInput = document.getElementById('importNewCompanyInput');
+    if (newCompInput) {
+        newCompInput.style.display = 'none';
+        newCompInput.value = '';
+    }
     const submitBtn = document.getElementById('btnSubmitImport');
     if (submitBtn) {
         submitBtn.disabled = false;
@@ -2052,8 +2164,30 @@ async function submitUploadedReport() {
         return;
     }
 
-    const compName = document.getElementById('importCompanyName').value.trim() || 'Unassigned / Retail';
-    const custName = document.getElementById('importCustomerName').value.trim() || 'Internal Lab';
+    let compName = '';
+    const compSelect = document.getElementById('importCompanySelect');
+    if (compSelect) {
+        if (compSelect.value === '__NEW__') {
+            compName = (document.getElementById('importNewCompanyInput').value || '').trim();
+            if (!compName) {
+                alert('⚠️ Please enter the new company name (நிறுவன பெயர் உள்ளிடவும்).');
+                document.getElementById('importNewCompanyInput').focus();
+                return;
+            }
+        } else {
+            compName = compSelect.value.trim();
+        }
+    }
+    if (!compName) compName = 'UNICOMTIC';
+
+    const custInput = document.getElementById('importCustomerName');
+    const custName = (custInput ? custInput.value : '').trim();
+    if (!custName) {
+        alert('⚠️ Please enter the Customer / User Name (வாடிக்கையாளர் / பயனர் பெயர் கட்டாயம் தேவை).');
+        if (custInput) custInput.focus();
+        return;
+    }
+
     const custPhone = document.getElementById('importCustomerPhone').value.trim();
     const serviceStatus = document.getElementById('importServiceStatus').value;
 
@@ -2129,13 +2263,17 @@ async function openLocalScansModal() {
     resetImportUpload();
     setupDropzone();
 
-    const dlist = document.getElementById('importCompanyList');
-    if (dlist) {
-        dlist.innerHTML = allCompanies.map(c => `<option value="${escapeHtml(c.name)}"></option>`).join('');
-    }
-    const compInput = document.getElementById('importCompanyName');
-    if (compInput) {
-        compInput.value = selectedCompany !== 'All' ? selectedCompany : (allCompanies[0] ? allCompanies[0].name : 'Unassigned / Retail');
+    const compSelect = document.getElementById('importCompanySelect');
+    if (compSelect) {
+        let opts = '';
+        allCompanies.forEach(c => {
+            opts += `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`;
+        });
+        opts += `<option value="__NEW__">➕ Add New Company...</option>`;
+        compSelect.innerHTML = opts;
+        let defaultChoice = (selectedCompany && selectedCompany !== 'All') ? selectedCompany : (allCompanies.some(c => c.name === 'UNICOMTIC') ? 'UNICOMTIC' : (allCompanies[0] ? allCompanies[0].name : ''));
+        if (defaultChoice) compSelect.value = defaultChoice;
+        handleImportCompanyChange(compSelect.value);
     }
 
     const container = document.getElementById('localScansList');

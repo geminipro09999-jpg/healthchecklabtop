@@ -431,7 +431,7 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 return self.send_json({"error": "Admin authorization required to import reports"}, 401)
             body = self.read_json_body()
             filename = body.get("filename")
-            company_name = body.get("company_name", "Unassigned / Retail")
+            company_name = body.get("company_name", "UNICOMTIC")
             cust_name = body.get("customer_name", "")
             cust_phone = body.get("customer_phone", "")
             complaints = body.get("complaints", [])
@@ -511,8 +511,8 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
             body = self.read_json_body()
             filename = body.get("filename", f"HealthReport_{int(time.time())}.html")
             raw_content = body.get("raw_content", "")
-            company_name = body.get("company_name", "Unassigned / Retail").strip() or "Unassigned / Retail"
-            cust_name = body.get("customer_name", "Internal Lab").strip() or "Internal Lab"
+            company_name = body.get("company_name", "UNICOMTIC").strip() or "UNICOMTIC"
+            cust_name = body.get("customer_name", "").strip() or "Internal Lab"
             cust_phone = body.get("customer_phone", "").strip()
             service_status = body.get("service_status", "Diagnosing").strip()
 
