@@ -18,9 +18,9 @@ if "%cust%"=="" set cust=%USERNAME%
 set phone=
 set /p phone="Enter Customer Phone [Optional]: "
 
-set srv=http://localhost:8080
-set /p srv="Enter Dashboard Server URL [Press Enter for 'http://localhost:8080']: "
-if "%srv%"=="" set srv=http://localhost:8080
+set srv=https://healthchecklabtop.vercel.app
+set /p srv="Enter Dashboard Server URL [Press Enter for 'https://healthchecklabtop.vercel.app']: "
+if "%srv%"=="" set srv=https://healthchecklabtop.vercel.app
 
 echo.
 echo ================================================================

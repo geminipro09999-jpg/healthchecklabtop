@@ -14,11 +14,19 @@ param (
     [string]$Company = "UNICOMTIC",
     [string]$CustomerName = "",
     [string]$CustomerPhone = "",
-    [string]$ServerUrl = "http://localhost:8080",
+    [string]$ServerUrl = "https://healthchecklabtop.vercel.app",
     [string]$AdminPassword = "admin123",
-    [switch]$AutoUpload,
+    [switch]$AutoUpload = $true,
+    [switch]$NoUpload,
     [switch]$NoBrowserOpen
 )
+
+if ($NoUpload) { $AutoUpload = $false }
+
+# Ensure modern TLS 1.2 is enabled for HTTPS communication with Vercel
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
+} catch {}
 
 $ErrorActionPreference = 'SilentlyContinue'
 
@@ -1137,7 +1145,11 @@ if ($AutoUpload -and $ServerUrl) {
         $JsonBody = $UploadPayload | ConvertTo-Json -Depth 6
         $ApiUrl = "$ServerUrl/api/reports/upload-import".Replace("//api", "/api")
         
-        $Response = Invoke-RestMethod -Uri $ApiUrl -Method Post -Body $JsonBody -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction Stop
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
+        } catch {}
+
+        $Response = Invoke-RestMethod -Uri $ApiUrl -Method Post -Body $JsonBody -ContentType "application/json; charset=utf-8" -TimeoutSec 60 -ErrorAction Stop
         
         if ($Response.success) {
             Write-Host "================================================================" -ForegroundColor Green
