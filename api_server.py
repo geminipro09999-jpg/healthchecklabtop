@@ -102,16 +102,35 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
         except Exception:
             return {}
 
+    def get_path_and_query(self):
+        parsed = urllib.parse.urlparse(self.path)
+        qs = urllib.parse.parse_qs(parsed.query)
+
+        # Check __path query parameter first (set by Vercel rewrite)
+        if "__path" in qs and qs["__path"][0]:
+            path = qs["__path"][0]
+        elif self.headers.get("x-forwarded-uri"):
+            path = urllib.parse.urlparse(self.headers["x-forwarded-uri"]).path
+        elif self.headers.get("x-matched-path"):
+            path = urllib.parse.urlparse(self.headers["x-matched-path"]).path
+        else:
+            path = parsed.path
+
+        if "?" in path:
+            path = path.split("?", 1)[0]
+        if len(path) > 1 and path.endswith("/"):
+            path = path[:-1]
+
+        return path, qs
+
     # ----------------------------------------------------
     # GET Requests
     # ----------------------------------------------------
     def do_GET(self):
-        parsed = urllib.parse.urlparse(self.path)
-        path = parsed.path
-        qs = urllib.parse.parse_qs(parsed.query)
+        path, qs = self.get_path_and_query()
 
         # Redirect root to Dashboard.html
-        if path in ("", "/"):
+        if path in ("", "/", "/Dashboard.html"):
             self.path = "/Dashboard.html"
             return super().do_GET()
 
@@ -178,8 +197,7 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
     # POST Requests
     # ----------------------------------------------------
     def do_POST(self):
-        parsed = urllib.parse.urlparse(self.path)
-        path = parsed.path
+        path, qs = self.get_path_and_query()
 
         # 1. Auth: Admin Login (Hashed verification)
         if path == "/api/auth/login":
@@ -389,15 +407,13 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 database.update_laptop(laptop_id, {"gdrive_folder_url": res.get("laptop_folder_url")})
             return self.send_json(res)
 
-        self.send_response(404)
-        self.end_headers()
+        return self.send_json({"error": f"POST endpoint not found: {path}"}, 404)
 
     # ----------------------------------------------------
     # PUT Requests (Update Laptop)
     # ----------------------------------------------------
     def do_PUT(self):
-        parsed = urllib.parse.urlparse(self.path)
-        path = parsed.path
+        path, qs = self.get_path_and_query()
 
         if path.startswith("/api/laptops/"):
             if not self.is_admin():
@@ -409,15 +425,13 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 return self.send_json({"error": "Laptop not found"}, 404)
             return self.send_json({"success": True, "laptop": updated})
 
-        self.send_response(404)
-        self.end_headers()
+        return self.send_json({"error": f"PUT endpoint not found: {path}"}, 404)
 
     # ----------------------------------------------------
     # DELETE Requests (Delete Laptop)
     # ----------------------------------------------------
     def do_DELETE(self):
-        parsed = urllib.parse.urlparse(self.path)
-        path = parsed.path
+        path, qs = self.get_path_and_query()
 
         if path.startswith("/api/laptops/"):
             if not self.is_admin():
@@ -428,8 +442,7 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 return self.send_json({"error": "Laptop not found or already deleted"}, 404)
             return self.send_json({"success": True, "message": f"Laptop {laptop_id} deleted"})
 
-        self.send_response(404)
-        self.end_headers()
+        return self.send_json({"error": f"DELETE endpoint not found: {path}"}, 404)
 
 
 def start_server(port=8080):

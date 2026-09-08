@@ -926,17 +926,22 @@ function getApiHeaders() {
     return headers;
 }
 
+async function safeJson(res) {
+    try {
+        const text = await res.text();
+        if (!text) return { success: false, error: `HTTP ${res.status} ${res.statusText}` };
+        return JSON.parse(text);
+    } catch (e) {
+        return { success: false, error: `Invalid response (HTTP ${res.status}): ${e.message}` };
+    }
+}
+
 async function checkAuthStatus() {
     try {
         const res = await fetch('/api/auth/status', { headers: getApiHeaders() });
-        if (res.ok) {
-            const data = await res.json();
-            isAdmin = data.isAdmin === true;
-        } else {
-            isAdmin = false;
-        }
+        const data = await safeJson(res);
+        isAdmin = res.ok && data.isAdmin === true;
     } catch (e) {
-        // Offline or file:// mode
         isAdmin = false;
     }
     updateAuthUI();
@@ -982,7 +987,7 @@ async function submitAdminLogin(event) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ password: pwd })
         });
-        const data = await res.json();
+        const data = await safeJson(res);
         if (res.ok && data.success) {
             authToken = data.token;
             localStorage.setItem('laptop_admin_token', authToken);
