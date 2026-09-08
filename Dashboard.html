@@ -1631,7 +1631,7 @@ function createLaptopCardHTML(l) {
 
                 <div class="card-actions">
                     ${l.report_filename ? `
-                        <a href="/${l.report_filename}" target="_blank" class="btn btn-primary" title="Open Full Health Report">📄 Report</a>
+                        <a href="/api/reports/html/${l.report_filename}" target="_blank" class="btn btn-primary" title="Open Full Health Report">📄 Report</a>
                     ` : ''}
                     
                     ${l.gdrive_folder_url ? `

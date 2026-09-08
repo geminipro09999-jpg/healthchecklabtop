@@ -241,14 +241,51 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 return self.send_json({"error": "Laptop not found"}, 404)
             return self.send_json({"success": True, "laptop": laptop})
 
-        if path == "/api/gdrive/status":
-            status = gdrive_sync.test_drive_connection()
-            cfg = auth.load_config().get("gdrive", {})
-            return self.send_json({
-                "configured": status["status"] == "connected",
-                "details": status,
-                "parent_folder_id": cfg.get("parent_folder_id", "")
-            })
+        if path.startswith("/api/reports/html/") or path.startswith("/HealthReport_") or path.endswith(".html"):
+            fname = os.path.basename(path)
+            # 1. Check local BASE_DIR
+            local_path = os.path.join(BASE_DIR, fname)
+            if os.path.exists(local_path) and os.path.isfile(local_path):
+                try:
+                    with open(local_path, "rb") as hf:
+                        content = hf.read()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(content)))
+                    self.end_headers()
+                    self.wfile.write(content)
+                    return
+                except Exception:
+                    pass
+
+            # 2. Check tempdir
+            tmp_path = os.path.join(tempfile.gettempdir(), fname)
+            if os.path.exists(tmp_path) and os.path.isfile(tmp_path):
+                try:
+                    with open(tmp_path, "rb") as hf:
+                        content = hf.read()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(content)))
+                    self.end_headers()
+                    self.wfile.write(content)
+                    return
+                except Exception:
+                    pass
+
+            # 3. Check SQLite database stored report_html
+            db_html = database.get_report_html_by_filename(fname)
+            if db_html:
+                content = db_html.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(content)))
+                self.end_headers()
+                self.wfile.write(content)
+                return
+
+            if path.startswith("/api/reports/html/"):
+                return self.send_json({"error": f"Report '{fname}' not found"}, 404)
 
         if path == "/api/reports/local":
             # List all generated HealthReport_*.json and .html files available locally
@@ -609,7 +646,8 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 "service_status": service_status,
                 "complaints": complaints,
                 "report_filename": filename,
-                "report_data": parsed
+                "report_data": parsed,
+                "report_html": raw_content
             })
 
             # Sync to Google Drive (Supports disk file or direct raw HTML)

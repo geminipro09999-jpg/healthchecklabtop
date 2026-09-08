@@ -71,6 +71,13 @@ def init_db():
     
     conn.commit()
     
+    # Migration: Add report_html column if missing
+    try:
+        cursor.execute("ALTER TABLE laptops ADD COLUMN report_html TEXT DEFAULT ''")
+        conn.commit()
+    except Exception:
+        pass
+
     # Seed default companies if none exist
     cursor.execute("SELECT COUNT(*) FROM companies")
     if cursor.fetchone()[0] == 0:
@@ -246,6 +253,17 @@ def get_laptop(laptop_id: str):
         d["report_data"] = {}
     return d
 
+def get_report_html_by_filename(filename: str) -> str:
+    """Finds stored report_html by report_filename or laptop id."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT report_html FROM laptops WHERE report_filename = ? OR id = ? LIMIT 1", (filename, filename.replace(".html", "")))
+    row = cursor.fetchone()
+    conn.close()
+    if row and row[0]:
+        return row[0]
+    return ""
+
 def find_duplicate_laptop(serial_number: str = None, device_name: str = None, company_name: str = None):
     """
     Checks if a machine with the same serial number (or device name within the same company) already exists.
@@ -307,8 +325,8 @@ def create_laptop(data: dict):
         device_name, model, serial_number, cpu, ram, storage, gpu,
         battery_health, overall_status, service_status, complaints,
         photo_screen, photo_top, photo_base, report_filename, report_data,
-        gdrive_folder_url, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        report_html, gdrive_folder_url, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         lap_id,
         company,
@@ -330,6 +348,7 @@ def create_laptop(data: dict):
         data.get("photo_base", ""),
         data.get("report_filename", ""),
         json.dumps(data.get("report_data", {})),
+        data.get("report_html", ""),
         data.get("gdrive_folder_url", ""),
         now,
         now
@@ -349,7 +368,7 @@ def update_laptop(laptop_id: str, data: dict):
         "company_name", "customer_name", "customer_phone", "device_name", "model",
         "serial_number", "cpu", "ram", "storage", "gpu", "battery_health",
         "overall_status", "service_status", "photo_screen", "photo_top",
-        "photo_base", "report_filename", "gdrive_folder_url"
+        "photo_base", "report_filename", "report_html", "gdrive_folder_url"
     ]
     
     for k in updatable:
