@@ -2071,6 +2071,35 @@ async function openLocalScansModal() {
 }
 
 async function importSelectedScan(filename) {
+    try {
+        const res = await fetch('/' + filename);
+        if (res.ok) {
+            const text = await res.text();
+            let parsed = null;
+            if (filename.endsWith('.json')) {
+                parsed = parseJsonReport(text);
+            } else {
+                parsed = parseHtmlReport(text);
+            }
+
+            currentUploadedReport = {
+                filename: filename,
+                rawContent: text,
+                parsed: parsed
+            };
+
+            displayParsedReportConfirmation(filename, parsed);
+            const confSec = document.getElementById('importConfirmSection');
+            if (confSec) {
+                confSec.scrollIntoView({ behavior: 'smooth' });
+            }
+            return;
+        }
+    } catch (err) {
+        console.warn('Could not load report content directly:', err);
+    }
+
+    // Fallback if direct fetch fails
     const comp = prompt('Assign to Company / Client:', selectedCompany !== 'All' ? selectedCompany : 'Unassigned / Retail');
     if (!comp) return;
 
