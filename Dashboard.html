@@ -1964,6 +1964,47 @@ function displayParsedReportConfirmation(filename, p) {
         </div>
     `;
 
+    // Check for duplicate machine in existing inventory
+    const genericSerials = ['', 'n/a', 'none', 'default string', 'system serial number', 'to be filled by o.e.m.', '0123456789'];
+    const cleanSerial = (p.serial_number || '').trim().toLowerCase();
+    const cleanDev = (p.device_name || '').trim().toLowerCase();
+
+    const existingLap = allLaptops.find(l => {
+        const lSerial = (l.serial_number || '').trim().toLowerCase();
+        const lDev = (l.device_name || '').trim().toLowerCase();
+        if (cleanSerial && !genericSerials.includes(cleanSerial) && lSerial === cleanSerial) {
+            return true;
+        }
+        if (cleanDev && lDev === cleanDev) {
+            return true;
+        }
+        return false;
+    });
+
+    const submitBtn = document.getElementById('btnSubmitImport');
+    if (existingLap) {
+        prevBox.innerHTML += `
+            <div style="margin-top: 10px; font-size: 0.8rem; background: rgba(239, 68, 68, 0.15); border: 1.5px solid var(--red); border-radius: 8px; padding: 10px 14px; color: #fecaca; line-height: 1.4;">
+                <strong style="color: #f87171; font-size: 0.85rem;">🚫 DUPLICATE MACHINE DETECTED (மறுமுறை பதிவேற்ற முடியாது):</strong><br>
+                This machine <strong>${escapeHtml(p.device_name)}</strong> (Serial: <code>${escapeHtml(p.serial_number || 'N/A')}</code>) is already registered in inventory under <strong>${escapeHtml(existingLap.company_name)}</strong> (ID: <code>${escapeHtml(existingLap.id)}</code>).<br>
+                <span style="color: #fca5a5;">Same machine cannot be uploaded or imported again as HTML.</span>
+            </div>
+        `;
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = '🚫 Duplicate Machine Blocked';
+            submitBtn.style.opacity = '0.6';
+            submitBtn.style.cursor = 'not-allowed';
+        }
+    } else {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '⚡ Confirm & Save to Inventory';
+            submitBtn.style.opacity = '1';
+            submitBtn.style.cursor = 'pointer';
+        }
+    }
+
     // Pre-fill company list datalist
     const dlist = document.getElementById('importCompanyList');
     if (dlist) {
@@ -1992,6 +2033,13 @@ function resetImportUpload() {
     if (confSec) confSec.style.display = 'none';
     const dropzone = document.getElementById('reportDropzone');
     if (dropzone) dropzone.style.display = 'block';
+    const submitBtn = document.getElementById('btnSubmitImport');
+    if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '⚡ Confirm & Save to Inventory';
+        submitBtn.style.opacity = '1';
+        submitBtn.style.cursor = 'pointer';
+    }
 }
 
 async function submitUploadedReport() {

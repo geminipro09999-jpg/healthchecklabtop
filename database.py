@@ -234,6 +234,43 @@ def get_laptop(laptop_id: str):
         d["report_data"] = {}
     return d
 
+def find_duplicate_laptop(serial_number: str = None, device_name: str = None, company_name: str = None):
+    """
+    Checks if a machine with the same serial number (or device name within the same company) already exists.
+    Returns existing laptop dict or None.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    clean_serial = (serial_number or "").strip()
+    clean_dev = (device_name or "").strip()
+    clean_comp = (company_name or "").strip()
+    
+    # Generic serial placeholders that are not unique across machines
+    generic_serials = {"", "n/a", "none", "default string", "system serial number", "to be filled by o.e.m.", "0123456789"}
+    
+    # 1. Unique match by real serial number
+    if clean_serial and clean_serial.lower() not in generic_serials:
+        cursor.execute("SELECT * FROM laptops WHERE LOWER(serial_number) = LOWER(?)", (clean_serial,))
+        row = cursor.fetchone()
+        if row:
+            conn.close()
+            return dict(row)
+            
+    # 2. Match by Device Name + Company Name
+    if clean_dev:
+        if clean_comp and clean_comp != "All":
+            cursor.execute("SELECT * FROM laptops WHERE LOWER(device_name) = LOWER(?) AND LOWER(company_name) = LOWER(?)", (clean_dev, clean_comp))
+        else:
+            cursor.execute("SELECT * FROM laptops WHERE LOWER(device_name) = LOWER(?)", (clean_dev,))
+        row = cursor.fetchone()
+        if row:
+            conn.close()
+            return dict(row)
+            
+    conn.close()
+    return None
+
 def create_laptop(data: dict):
     conn = get_connection()
     cursor = conn.cursor()

@@ -471,6 +471,17 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                     if not complaints:
                         complaints = ["Hardware scan completed with zero critical issues."]
 
+                # Duplicate check: prevent duplicate machine records
+                existing = database.find_duplicate_laptop(
+                    serial_number=serial,
+                    device_name=dev_name,
+                    company_name=company_name
+                )
+                if existing:
+                    return self.send_json({
+                        "error": f"⚠️ Duplicate Machine Rejected: Machine '{dev_name}' (Serial: {serial}) is already registered in inventory under '{existing.get('company_name')}' (ID: {existing.get('id')})."
+                    }, 409)
+
                 new_laptop = database.create_laptop({
                     "company_name": company_name,
                     "customer_name": cust_name,
@@ -543,6 +554,17 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 complaints = [complaints]
             if not complaints:
                 complaints = ["Hardware diagnostic scan completed."]
+
+            # Duplicate check: prevent duplicate machine records
+            existing = database.find_duplicate_laptop(
+                serial_number=parsed.get("serial_number"),
+                device_name=parsed.get("device_name"),
+                company_name=company_name
+            )
+            if existing:
+                return self.send_json({
+                    "error": f"⚠️ Duplicate Machine Rejected: Machine '{parsed.get('device_name')}' (Serial: {parsed.get('serial_number') or 'N/A'}) already exists in inventory under '{existing.get('company_name')}' (ID: {existing.get('id')}). Same machine cannot be uploaded again."
+                }, 409)
 
             new_laptop = database.create_laptop({
                 "company_name": company_name,
