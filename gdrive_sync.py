@@ -15,6 +15,7 @@ Root Folder (1cfYrNewvM1tmCumcV5pKEsq0fPvq-fGZ)
 import os
 import json
 import base64
+import zlib
 import mimetypes
 import logging
 import requests
@@ -28,12 +29,14 @@ logging.basicConfig(level=logging.INFO)
 
 SCOPES = ['https://www.googleapis.com/auth/drive']
 TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'token.json')
+VAULT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'gdrive_vault.dat')
+VAULT_KEY = b"unicomtic_drive_key_2026"
 
 _cached_token = None
 _cached_creds = None
 
 def get_access_token():
-    """Returns a valid Google OAuth2 access token (prioritizes user token.json/token_info, falls back to service_account.json)."""
+    """Returns a valid Google OAuth2 access token (prioritizes user token.json/vault, falls back to service_account.json)."""
     global _cached_token, _cached_creds
 
     # 1. Prioritize personal Google Account OAuth token from disk
@@ -50,6 +53,23 @@ def get_access_token():
                 return _cached_token, None
         except Exception as e:
             logger.warning(f"OAuth token refresh error: {e}")
+
+    # 1b. Prioritize encrypted vault on disk (Works automatically on Vercel without environment variables)
+    if os.path.exists(VAULT_FILE):
+        try:
+            with open(VAULT_FILE, "rb") as vf:
+                raw_enc = vf.read()
+            dec = zlib.decompress(bytes(b ^ VAULT_KEY[i % len(VAULT_KEY)] for i, b in enumerate(raw_enc)))
+            token_data = json.loads(dec.decode("utf-8"))
+            creds = Credentials.from_authorized_user_info(token_data, SCOPES)
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            if creds and creds.valid:
+                _cached_creds = creds
+                _cached_token = creds.token
+                return _cached_token, None
+        except Exception as e:
+            logger.warning(f"Vault OAuth token error: {e}")
 
     # 1b. Prioritize personal Google Account OAuth token from env (Base64 or JSON)
     b64_token = os.environ.get("GDRIVE_TOKEN_B64")
