@@ -69,8 +69,11 @@ def load_config() -> dict:
         }
 
 def save_config(cfg: dict):
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+    except OSError:
+        pass
 
 ACTIVE_SESSIONS = {}
 

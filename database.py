@@ -8,9 +8,14 @@ import os
 import json
 import uuid
 import time
+import tempfile
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "laptops.db")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if os.environ.get("VERCEL") or not os.access(BASE_DIR, os.W_OK):
+    DB_PATH = os.path.join(tempfile.gettempdir(), "laptops.db")
+else:
+    DB_PATH = os.path.join(BASE_DIR, "laptops.db")
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)

@@ -17,16 +17,27 @@ import urllib.parse
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from datetime import datetime
 
+import tempfile
 import auth
 import database
 import gdrive_sync
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-IMAGES_DIR = os.path.join(BASE_DIR, "laptop_images")
-os.makedirs(IMAGES_DIR, exist_ok=True)
+if os.environ.get("VERCEL") or not os.access(BASE_DIR, os.W_OK):
+    IMAGES_DIR = os.path.join(tempfile.gettempdir(), "laptop_images")
+else:
+    IMAGES_DIR = os.path.join(BASE_DIR, "laptop_images")
+
+try:
+    os.makedirs(IMAGES_DIR, exist_ok=True)
+except Exception:
+    pass
 
 # Ensure database is initialized
-database.init_db()
+try:
+    database.init_db()
+except Exception as e:
+    print(f"Warning: Database init failed: {e}")
 
 def get_local_ip():
     """Finds the LAN IP address of this machine."""
@@ -41,7 +52,10 @@ def get_local_ip():
 
 class LaptopApiHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=BASE_DIR, **kwargs)
+        try:
+            super().__init__(*args, directory=BASE_DIR, **kwargs)
+        except Exception:
+            super().__init__(*args, **kwargs)
 
     def end_headers(self):
         # Enable CORS for local network and mobile devices
