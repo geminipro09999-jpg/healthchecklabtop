@@ -74,7 +74,7 @@ def catch_all(path):
                 response_status[0] = code
 
             def send_header(self, key, value):
-                response_headers[key] = value
+                response_headers[key.lower()] = value
 
             def end_headers(self):
                 pass
@@ -97,9 +97,20 @@ def catch_all(path):
         body = response_wfile.read()
 
         from flask import Response
-        content_type = response_headers.get("Content-Type", "application/json; charset=utf-8")
+        # Check case-insensitively
+        content_type = response_headers.get("content-type")
+        if not content_type:
+            # Detect if body is HTML
+            if body.strip().startswith(b"<!DOCTYPE html") or body.strip().startswith(b"<html"):
+                content_type = "text/html; charset=utf-8"
+            else:
+                content_type = "application/json; charset=utf-8"
+
         resp = Response(body, status=response_status[0], content_type=content_type)
         resp.headers["Access-Control-Allow-Origin"] = "*"
+        for k, v in response_headers.items():
+            if k not in ("content-type", "content-length", "access-control-allow-origin"):
+                resp.headers[k] = v
         return resp
 
     except Exception as e:
