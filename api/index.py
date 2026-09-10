@@ -38,7 +38,7 @@ def _build_request(event):
             pass
     return Req()
 
-def handler(event, context):
+def _handler(event, context):
     """Vercel entry point.
     Delegates request handling to the existing :class:`LaptopApiHandler`.
     Returns a Vercel‑compatible response dictionary.
@@ -76,4 +76,4 @@ def handler(event, context):
         "headers": {"Content-Type": "application/json"},
         "body": body
     }
-handler = handler  # expose for Vercel
+handler = _handler  # expose for Vercel
