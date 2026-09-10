@@ -76,3 +76,4 @@ def handler(event, context):
         "headers": {"Content-Type": "application/json"},
         "body": body
     }
+handler = handler  # expose for Vercel
