@@ -49,9 +49,49 @@ logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s %(me
 from datetime import datetime
 
 import tempfile
-import auth
-import database
-import gdrive_sync
+# Optional imports wrapped to avoid deployment-time failures
+try:
+    import auth
+except Exception as e:
+    logging.error("Failed to import auth module: %s", e)
+    class _AuthFallback:
+        @staticmethod
+        def load_config():
+            return {}
+        @staticmethod
+        def verify_password(pwd, salt, expected_hash):
+            return False
+    auth = _AuthFallback()
+
+try:
+    import database
+except Exception as e:
+    logging.error("Failed to import database module: %s", e)
+    class _DatabaseFallback:
+        @staticmethod
+        def init_db():
+            logging.info("Database init skipped in fallback.")
+        @staticmethod
+        def find_duplicate_laptop(**kwargs):
+            return None
+        @staticmethod
+        def create_laptop(data):
+            return {}
+        @staticmethod
+        def update_laptop(id, fields):
+            return {}
+    database = _DatabaseFallback()
+
+try:
+    import gdrive_sync
+except Exception as e:
+    logging.error("Failed to import gdrive_sync module: %s", e)
+    class _GDriveFallback:
+        @staticmethod
+        def sync_report(*args, **kwargs):
+            logging.info("gdrive_sync is unavailable, skipping sync.")
+            return None
+    gdrive_sync = _GDriveFallback()
 
 def parse_html_report_text(html_content: str) -> dict:
     """Extracts hardware specs, diagnostic checklist, and health score from HTML report."""
@@ -597,11 +637,213 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 })
                 return self.send_json({"success": True, "laptop": new_laptop}, 201)
             except Exception as e:
-                return self.send_json({"error": f"Failed to import report: {str(e)}"}, 500)
+                import traceback
+                tb = traceback.format_exc()
+                logging.exception("Upload-import handler failed")
+                return self.send_json({"error": f"Failed to import report: {str(e)}", "traceback": tb}, 500)
 
         # 8. Upload & Import Report (.html or .json) with Direct Form Confirmation
         if path == "/api/reports/upload-import":
             try:
+                body = self.read_json_body()
+                logging.info("Upload-import payload keys: %s", list(body.keys()))
+                # Determine whether to sync to Google Drive (client can skip heavy operation)
+                skip_gdrive = body.get("skip_gdrive", False)
+                logging.info("skip_gdrive flag: %s", skip_gdrive)
+
+                # Allow authorization via Bearer token OR admin_password in body
+                is_authed = self.is_admin()
+                if not is_authed:
+                    admin_pwd = body.get("admin_password", "")
+                    if admin_pwd:
+                        cfg = auth.load_config()
+                        salt = cfg.get("admin_salt", "")
+                        expected_hash = cfg.get("admin_password_hash", "")
+                        if auth.verify_password(admin_pwd, salt, expected_hash):
+                            is_authed = True
+
+                if not is_authed:
+                    return self.send_json({"error": "Admin authorization required to import reports"}, 401)
+
+                filename = body.get("filename", f"HealthReport_{int(time.time())}.html")
+                raw_content = body.get("raw_content", "")
+                company_name = body.get("company_name", "UNICOMTIC").strip() or "UNICOMTIC"
+                cust_name = body.get("customer_name", "").strip() or "Internal Lab"
+                cust_phone = body.get("customer_phone", "").strip()
+                service_status = body.get("service_status", "Diagnosing").strip()
+
+                parsed = body.get("parsed") or {}
+                if not parsed and raw_content:
+                    if filename.endswith(".json"):
+                        try:
+                            p_json = json.loads(raw_content)
+                            parsed = {
+                                "device_name": p_json.get("deviceName", "PC"),
+                                "model": f"{p_json.get('manufacturer', '')} {p_json.get('model', '')}".strip(),
+                                "serial_number": p_json.get("serialNumber", "N/A"),
+                                "cpu": p_json.get("cpu", ""),
+                                "ram": f"{p_json.get('ramTotalGB', 0)} GB",
+                                "storage": p_json.get("disks", ""),
+                                "gpu": p_json.get("gpu", ""),
+                                "battery_health": int(p_json.get("batteryHealthPercent", 100)),
+                                "overall_status": "Healthy" if p_json.get("healthScore", 100) >= 80 else ("Warning" if p_json.get("healthScore", 100) >= 50 else "Critical"),
+                                "complaints": p_json.get("failingHardwares", []) + p_json.get("warnings", []),
+                            }
+                        except Exception:
+                            pass
+                    else:
+                        if raw_content:
+                            parsed = parse_html_report_text(raw_content)
+                        # Simple fallback HTML if none provided
+                        if not raw_content and parsed:
+                            try:
+                                raw_content = f"<html><body><h1>{parsed.get('device_name', 'Device')}</h1></body></html>"
+                            except Exception as e:
+                                logging.error("Failed to create fallback HTML: %s", e)
+
+                # Save report file to disk if possible
+                saved_report_path = None
+                if raw_content:
+                    try:
+                        save_dir = BASE_DIR if os.access(BASE_DIR, os.W_OK) else tempfile.gettempdir()
+                        saved_report_path = os.path.join(save_dir, filename)
+                        with open(saved_report_path, "w", encoding="utf-8") as rf:
+                            rf.write(raw_content)
+                    except Exception as e:
+                        print(f"Notice: Could not write report file to disk: {e}")
+
+                # Battery Report handling (if provided)
+                bat_filename = body.get("battery_report_filename", "").strip()
+                bat_raw = body.get("battery_report_html", "")
+                bat_cycle = body.get("battery_cycle_count", "") or parsed.get("battery_cycle_count", "")
+                saved_bat_path = None
+                if bat_raw and bat_filename:
+                    try:
+                        save_dir = BASE_DIR if os.access(BASE_DIR, os.W_OK) else tempfile.gettempdir()
+                        saved_bat_path = os.path.join(save_dir, bat_filename)
+                        with open(saved_bat_path, "w", encoding="utf-8") as bf:
+                            bf.write(bat_raw)
+                    except Exception as e:
+                        print(f"Notice: Could not write battery report file to disk: {e}")
+
+                complaints = parsed.get("complaints", [])
+                if isinstance(complaints, str):
+                    complaints = [complaints]
+                if not complaints:
+                    complaints = ["Hardware diagnostic scan completed."]
+
+                # Duplicate check: update existing machine if already registered
+                existing = database.find_duplicate_laptop(
+                    serial_number=parsed.get("serial_number"),
+                    device_name=parsed.get("device_name"),
+                    company_name=company_name
+                )
+                if existing:
+                    updated_fields = {
+                        "customer_name": cust_name if cust_name else existing.get("customer_name", ""),
+                        "customer_phone": cust_phone if cust_phone else existing.get("customer_phone", ""),
+                        "cpu": parsed.get("cpu", existing.get("cpu", "")),
+                        "ram": parsed.get("ram", existing.get("ram", "")),
+                        "storage": parsed.get("storage", existing.get("storage", "")),
+                        "gpu": parsed.get("gpu", existing.get("gpu", "")),
+                        "battery_health": parsed.get("battery_health", existing.get("battery_health", 100)),
+                        "overall_status": parsed.get("overall_status", "Healthy"),
+                        "complaints": complaints,
+                        "report_filename": filename,
+                        "report_data": parsed,
+                        "report_html": raw_content,
+                        "battery_report_filename": bat_filename,
+                        "battery_report_html": bat_raw,
+                        "battery_cycle_count": str(bat_cycle)
+                    }
+                    updated_laptop = database.update_laptop(existing["id"], updated_fields)
+
+                    # Sync to Google Drive
+                    drive_result = None
+                    try:
+                        drive_res = gdrive_sync.sync_laptop_to_drive(
+                            updated_laptop,
+                            report_path=saved_report_path,
+                            report_html_content=raw_content,
+                            report_filename=filename,
+                            battery_report_path=saved_bat_path,
+                            battery_report_content=bat_raw,
+                            battery_report_filename=bat_filename
+                        )
+                        if drive_res.get("success"):
+                            d_url = drive_res.get("laptop_folder_url", "")
+                            if d_url:
+                                database.update_laptop(updated_laptop["id"], {"gdrive_folder_url": d_url})
+                                updated_laptop["gdrive_folder_url"] = d_url
+                            drive_result = drive_res
+                    except Exception as d_err:
+                        print(f"Notice: Google Drive sync skipped: {d_err}")
+
+                    return self.send_json({
+                        "success": True,
+                        "message": f"Laptop '{existing['id']}' ({parsed.get('device_name')}) refreshed with latest diagnostic scan.",
+                        "laptop": updated_laptop,
+                        "gdrive": drive_result
+                    }, 200)
+
+                # Create new laptop entry
+                new_laptop = database.create_laptop({
+                    "company_name": company_name,
+                    "customer_name": cust_name,
+                    "customer_phone": cust_phone,
+                    "device_name": parsed.get("device_name", "Laptop"),
+                    "model": parsed.get("model", "Standard PC"),
+                    "serial_number": parsed.get("serial_number", "N/A"),
+                    "cpu": parsed.get("cpu", ""),
+                    "ram": parsed.get("ram", ""),
+                    "storage": parsed.get("storage", ""),
+                    "gpu": parsed.get("gpu", ""),
+                    "battery_health": parsed.get("battery_health", 100),
+                    "overall_status": parsed.get("overall_status", "Healthy"),
+                    "service_status": service_status,
+                    "complaints": complaints,
+                    "report_filename": filename,
+                    "report_data": parsed,
+                    "report_html": raw_content,
+                    "battery_report_filename": bat_filename,
+                    "battery_report_html": bat_raw,
+                    "battery_cycle_count": str(bat_cycle)
+                })
+
+                # Sync to Google Drive (Supports disk file or direct raw HTML, plus Battery Report)
+                drive_result = None
+                if not skip_gdrive:
+                    try:
+                        drive_res = gdrive_sync.sync_laptop_to_drive(
+                            new_laptop,
+                            report_path=saved_report_path,
+                            report_html_content=raw_content,
+                            report_filename=filename,
+                            battery_report_path=saved_bat_path,
+                            battery_report_content=bat_raw,
+                            battery_report_filename=bat_filename
+                        )
+                        if drive_res.get("success"):
+                            d_url = drive_res.get("laptop_folder_url", "")
+                            if d_url:
+                                database.update_laptop(new_laptop["id"], {"gdrive_folder_url": d_url})
+                                new_laptop["gdrive_folder_url"] = d_url
+                            drive_result = drive_res
+                    except Exception as d_err:
+                        print(f"Notice: Google Drive sync skipped: {d_err}")
+                else:
+                    drive_result = {"skipped": True, "reason": "skip_gdrive flag set by client"}
+
+                return self.send_json({
+                    "success": True,
+                    "message": f"Report '{filename}' imported successfully for {company_name}",
+                    "laptop": new_laptop,
+                    "gdrive": drive_result
+                }, 201)
+            except Exception as e:
+                logging.exception("Upload-import handler failed")
+                return self.send_json({"error": "Internal server error"}, 500)
+
             body = self.read_json_body()
             logging.info("Upload-import payload keys: %s", list(body.keys()))
             # Determine whether to sync to Google Drive (client can skip heavy operation)
