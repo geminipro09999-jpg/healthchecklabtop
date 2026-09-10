@@ -68,6 +68,7 @@ def catch_all(path):
                 self.requestline = f"{shim.command} {shim.path} HTTP/1.1"
                 self.request_version = "HTTP/1.1"
                 self.close_connection = True
+                self.directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
             def send_response(self, code, message=None):
                 response_status[0] = code
