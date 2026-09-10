@@ -601,6 +601,7 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
 
         # 8. Upload & Import Report (.html or .json) with Direct Form Confirmation
         if path == "/api/reports/upload-import":
+            try:
             body = self.read_json_body()
             logging.info("Upload-import payload keys: %s", list(body.keys()))
             # Determine whether to sync to Google Drive (client can skip heavy operation)
@@ -647,13 +648,15 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                     except Exception:
                         pass
                 else:
-                                        parsed = parse_html_report_text(raw_content)
-                    # If HTML not provided, generate from parsed JSON using the HTML_TEMPLATE
+                    if raw_content:
+                        parsed = parse_html_report_text(raw_content)
+                    # Simple fallback HTML if none provided
                     if not raw_content and parsed:
                         try:
-                            raw_content = HTML_TEMPLATE.format(**parsed)
+                            raw_content = f"<html><body><h1>{parsed.get('device_name', 'Device')}</h1></body></html>"
                         except Exception as e:
-                            logging.error("Failed to generate HTML from template: %s", e)
+                            logging.error("Failed to create fallback HTML: %s", e)
+
 
             # Save report file to disk if possible
             saved_report_path = None
@@ -795,6 +798,10 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 "laptop": new_laptop,
                 "gdrive": drive_result
             }, 201)
+
+                    except Exception as e:
+                logging.exception("Upload-import handler failed")
+                return self.send_json({"error": "Internal server error"}, 500)
 
         # 9. Sync Laptop to Google Drive on Demand (Admin only)
         if path.startswith("/api/gdrive/sync/"):
