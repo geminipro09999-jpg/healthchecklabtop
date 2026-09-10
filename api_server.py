@@ -16,7 +16,36 @@ import base64
 import urllib.parse
 import re
 import time
-from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>Hardware Health Report - {device_name}</title>
+    <style>
+        body {font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5;}
+        .card {background: #fff; padding: 15px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
+    </style>
+</head>
+<body>
+    <h1>Hardware Health Report</h1>
+    <div class=\"card\"><strong>Device:</strong> {device_name}</div>
+    <div class=\"card\"><strong>Model:</strong> {model}</div>
+    <div class=\"card\"><strong>Serial:</strong> {serial_number}</div>
+    <div class=\"card\"><strong>CPU:</strong> {cpu}</div>
+    <div class=\"card\"><strong>RAM:</strong> {ram}</div>
+    <div class=\"card\"><strong>Storage:</strong> {storage}</div>
+    <div class=\"card\"><strong>GPU:</strong> {gpu}</div>
+    <div class=\"card\"><strong>Battery Health:</strong> {battery_health}%</div>
+    <div class=\"card\"><strong>Status:</strong> {overall_status}</div>
+    <div class=\"card\"><strong>Complaints:</strong> {complaints}</div>
+</body>
+</html>
+"""
+
+import logging
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s %(message)s')
 from datetime import datetime
 
 import tempfile
@@ -573,6 +602,11 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
         # 8. Upload & Import Report (.html or .json) with Direct Form Confirmation
         if path == "/api/reports/upload-import":
             body = self.read_json_body()
+            logging.info("Upload-import payload keys: %s", list(body.keys()))
+            # Determine whether to sync to Google Drive (client can skip heavy operation)
+            skip_gdrive = body.get("skip_gdrive", False)
+            logging.info("skip_gdrive flag: %s", skip_gdrive)
+
             # Allow authorization via Bearer token OR admin_password in body
             is_authed = self.is_admin()
             if not is_authed:
@@ -613,7 +647,13 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                     except Exception:
                         pass
                 else:
-                    parsed = parse_html_report_text(raw_content)
+                                        parsed = parse_html_report_text(raw_content)
+                    # If HTML not provided, generate from parsed JSON using the HTML_TEMPLATE
+                    if not raw_content and parsed:
+                        try:
+                            raw_content = HTML_TEMPLATE.format(**parsed)
+                        except Exception as e:
+                            logging.error("Failed to generate HTML from template: %s", e)
 
             # Save report file to disk if possible
             saved_report_path = None
@@ -725,24 +765,29 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
 
             # Sync to Google Drive (Supports disk file or direct raw HTML, plus Battery Report)
             drive_result = None
-            try:
-                drive_res = gdrive_sync.sync_laptop_to_drive(
-                    new_laptop,
-                    report_path=saved_report_path,
-                    report_html_content=raw_content,
-                    report_filename=filename,
-                    battery_report_path=saved_bat_path,
-                    battery_report_content=bat_raw,
-                    battery_report_filename=bat_filename
-                )
-                if drive_res.get("success"):
-                    d_url = drive_res.get("laptop_folder_url", "")
-                    if d_url:
-                        database.update_laptop(new_laptop["id"], {"gdrive_folder_url": d_url})
-                        new_laptop["gdrive_folder_url"] = d_url
-                    drive_result = drive_res
-            except Exception as d_err:
-                print(f"Notice: Google Drive sync skipped: {d_err}")
+            skip_gdrive = body.get("skip_gdrive", False)
+            if not skip_gdrive:
+                try:
+                    drive_res = gdrive_sync.sync_laptop_to_drive(
+                        new_laptop,
+                        report_path=saved_report_path,
+                        report_html_content=raw_content,
+                        report_filename=filename,
+                        battery_report_path=saved_bat_path,
+                        battery_report_content=bat_raw,
+                        battery_report_filename=bat_filename
+                    )
+                    if drive_res.get("success"):
+                        d_url = drive_res.get("laptop_folder_url", "")
+                        if d_url:
+                            database.update_laptop(new_laptop["id"], {"gdrive_folder_url": d_url})
+                            new_laptop["gdrive_folder_url"] = d_url
+                        drive_result = drive_res
+                except Exception as d_err:
+                    print(f"Notice: Google Drive sync skipped: {d_err}")
+            else:
+                drive_result = {"skipped": True, "reason": "skip_gdrive flag set by client"}
+
 
             return self.send_json({
                 "success": True,
