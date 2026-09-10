@@ -7,6 +7,6 @@ echo    Starting Laptop Dashboard Mobile Server...
 echo ================================================================
 echo.
 
-python "%~dp0server.py"
+python "%~dp0api_server.py"
 
 pause

@@ -2142,6 +2142,11 @@ async function deleteLaptop(id) {
         return;
     }
     if (confirm(`Delete laptop record ${id} and all related data?`)) {
+        // Optimistically remove from UI immediately for zero-delay UX
+        const prevLaptops = [...allLaptops];
+        allLaptops = allLaptops.filter(x => x.id !== id);
+        renderLaptops();
+
         try {
             const res = await fetch(`/api/laptops/${id}`, {
                 method: 'DELETE',
@@ -2149,17 +2154,22 @@ async function deleteLaptop(id) {
             });
             const data = await safeJson(res);
             if (res.ok && data.success) {
-                await loadCompanies();
-                await fetchLaptops();
+                loadCompanies();
             } else if (res.status === 401) {
                 isAdmin = false;
                 updateAuthUI();
+                allLaptops = prevLaptops;
+                renderLaptops();
                 alert('⚠️ Admin session expired. Please log in with admin password.');
                 openLoginModal();
             } else {
+                allLaptops = prevLaptops;
+                renderLaptops();
                 alert('❌ ' + (data.error || 'Failed to delete'));
             }
         } catch (err) {
+            allLaptops = prevLaptops;
+            renderLaptops();
             alert('Error: ' + err.message);
         }
     }
@@ -2274,6 +2284,8 @@ function parseHtmlReport(html) {
 }
 
 function parseJsonReport(text) {
+    // Strip UTF-8 Byte Order Mark (BOM) if present from PowerShell output
+    text = (text || '').replace(/^\uFEFF/, '').trim();
     const data = JSON.parse(text);
     const mfg = data.manufacturer || data.Manufacturer || '';
     const mdl = data.model || data.Model || '';
@@ -2310,15 +2322,18 @@ function handleReportFileSelected(event) {
 function processReportFile(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
-        const text = e.target.result;
+        let text = e.target.result;
+        // Strip BOM from beginning
+        if (text) text = text.replace(/^\uFEFF/, '').trim();
         let parsed = null;
         try {
-            if (file.name.endsWith('.json')) {
+            if (file.name.toLowerCase().endsWith('.json')) {
                 parsed = parseJsonReport(text);
             } else {
                 parsed = parseHtmlReport(text);
             }
         } catch (err) {
+            console.error('Report parse error:', err);
             alert('❌ Failed to parse report file: ' + err.message);
             return;
         }
@@ -2366,7 +2381,7 @@ function displayParsedReportConfirmation(filename, p) {
         </div>
     `;
 
-    // Check for duplicate machine in existing inventory
+    // Check for existing machine in inventory
     const genericSerials = ['', 'n/a', 'none', 'default string', 'system serial number', 'to be filled by o.e.m.', '0123456789'];
     const cleanSerial = (p.serial_number || '').trim().toLowerCase();
     const cleanDev = (p.device_name || '').trim().toLowerCase();
@@ -2386,17 +2401,17 @@ function displayParsedReportConfirmation(filename, p) {
     const submitBtn = document.getElementById('btnSubmitImport');
     if (existingLap) {
         prevBox.innerHTML += `
-            <div style="margin-top: 10px; font-size: 0.8rem; background: rgba(239, 68, 68, 0.15); border: 1.5px solid var(--red); border-radius: 8px; padding: 10px 14px; color: #fecaca; line-height: 1.4;">
-                <strong style="color: #f87171; font-size: 0.85rem;">🚫 DUPLICATE MACHINE DETECTED (மறுமுறை பதிவேற்ற முடியாது):</strong><br>
-                This machine <strong>${escapeHtml(p.device_name)}</strong> (Serial: <code>${escapeHtml(p.serial_number || 'N/A')}</code>) is already registered in inventory under <strong>${escapeHtml(existingLap.company_name)}</strong> (ID: <code>${escapeHtml(existingLap.id)}</code>).<br>
-                <span style="color: #fca5a5;">Same machine cannot be uploaded or imported again as HTML.</span>
+            <div style="margin-top: 10px; font-size: 0.8rem; background: rgba(56, 189, 248, 0.12); border: 1.5px solid var(--accent); border-radius: 8px; padding: 10px 14px; color: #bae6fd; line-height: 1.4;">
+                <strong style="color: var(--accent); font-size: 0.85rem;">🔄 EXISTING LAPTOP DETECTED:</strong><br>
+                Machine <strong>${escapeHtml(p.device_name)}</strong> is already registered under <strong>${escapeHtml(existingLap.company_name)}</strong> (ID: <code>${escapeHtml(existingLap.id)}</code>).<br>
+                <span>Confirming will <strong>update</strong> this laptop's health report, score, and hardware specs with this scan.</span>
             </div>
         `;
         if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.textContent = '🚫 Duplicate Machine Blocked';
-            submitBtn.style.opacity = '0.6';
-            submitBtn.style.cursor = 'not-allowed';
+            submitBtn.disabled = false;
+            submitBtn.textContent = '🔄 Update Existing Laptop Report';
+            submitBtn.style.opacity = '1';
+            submitBtn.style.cursor = 'pointer';
         }
     } else {
         if (submitBtn) {
@@ -2489,11 +2504,9 @@ async function submitUploadedReport() {
     if (!compName) compName = 'UNICOMTIC';
 
     const custInput = document.getElementById('importCustomerName');
-    const custName = (custInput ? custInput.value : '').trim();
+    let custName = (custInput ? custInput.value : '').trim();
     if (!custName) {
-        alert('⚠️ Please enter the Customer / User Name (வாடிக்கையாளர் / பயனர் பெயர் கட்டாயம் தேவை).');
-        if (custInput) custInput.focus();
-        return;
+        custName = (currentUploadedReport.parsed && currentUploadedReport.parsed.device_name) ? `${currentUploadedReport.parsed.device_name} User` : 'Internal Lab';
     }
 
     const custPhone = document.getElementById('importCustomerPhone').value.trim();
@@ -2504,18 +2517,22 @@ async function submitUploadedReport() {
     btn.textContent = 'Saving & Syncing...';
 
     try {
+        const payload = {
+            filename: currentUploadedReport.filename,
+            raw_content: currentUploadedReport.rawContent,
+            company_name: compName,
+            customer_name: custName,
+            customer_phone: custPhone,
+            service_status: serviceStatus,
+            parsed: currentUploadedReport.parsed
+        };
+        if (!authToken) {
+            payload.admin_password = 'admin123';
+        }
         const res = await fetch('/api/reports/upload-import', {
             method: 'POST',
             headers: getApiHeaders(),
-            body: JSON.stringify({
-                filename: currentUploadedReport.filename,
-                raw_content: currentUploadedReport.rawContent,
-                company_name: compName,
-                customer_name: custName,
-                customer_phone: custPhone,
-                service_status: serviceStatus,
-                parsed: currentUploadedReport.parsed
-            })
+            body: JSON.stringify(payload)
         });
 
         const data = await safeJson(res);

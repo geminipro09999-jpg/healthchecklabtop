@@ -16,6 +16,7 @@ import base64
 import urllib.parse
 import re
 import time
+import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -759,32 +760,35 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                     }
                     updated_laptop = database.update_laptop(existing["id"], updated_fields)
 
-                    # Sync to Google Drive
-                    drive_result = None
-                    try:
-                        drive_res = gdrive_sync.sync_laptop_to_drive(
-                            updated_laptop,
-                            report_path=saved_report_path,
-                            report_html_content=raw_content,
-                            report_filename=filename,
-                            battery_report_path=saved_bat_path,
-                            battery_report_content=bat_raw,
-                            battery_report_filename=bat_filename
-                        )
-                        if drive_res.get("success"):
-                            d_url = drive_res.get("laptop_folder_url", "")
-                            if d_url:
-                                database.update_laptop(updated_laptop["id"], {"gdrive_folder_url": d_url})
-                                updated_laptop["gdrive_folder_url"] = d_url
-                            drive_result = drive_res
-                    except Exception as d_err:
-                        print(f"Notice: Google Drive sync skipped: {d_err}")
+                    # Sync to Google Drive in background thread (non-blocking, ultra-fast response)
+                    def _async_sync_existing(target_laptop, rep_path, rep_html, rep_fname, bat_path, bat_html, bat_fname):
+                        try:
+                            drive_res = gdrive_sync.sync_laptop_to_drive(
+                                target_laptop,
+                                report_path=rep_path,
+                                report_html_content=rep_html,
+                                report_filename=rep_fname,
+                                battery_report_path=bat_path,
+                                battery_report_content=bat_html,
+                                battery_report_filename=bat_fname
+                            )
+                            if drive_res.get("success"):
+                                d_url = drive_res.get("laptop_folder_url", "")
+                                if d_url:
+                                    database.update_laptop(target_laptop["id"], {"gdrive_folder_url": d_url})
+                        except Exception as d_err:
+                            print(f"Notice: Google Drive background sync: {d_err}")
+
+                    threading.Thread(
+                        target=_async_sync_existing,
+                        args=(updated_laptop, saved_report_path, raw_content, filename, saved_bat_path, bat_raw, bat_filename),
+                        daemon=True
+                    ).start()
 
                     return self.send_json({
                         "success": True,
                         "message": f"Laptop '{existing['id']}' ({parsed.get('device_name')}) refreshed with latest diagnostic scan.",
-                        "laptop": updated_laptop,
-                        "gdrive": drive_result
+                        "laptop": updated_laptop
                     }, 200)
 
                 # Create new laptop entry
@@ -811,35 +815,36 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                     "battery_cycle_count": str(bat_cycle)
                 })
 
-                # Sync to Google Drive (Supports disk file or direct raw HTML, plus Battery Report)
-                drive_result = None
+                # Sync to Google Drive in background thread (non-blocking)
                 if not skip_gdrive:
-                    try:
-                        drive_res = gdrive_sync.sync_laptop_to_drive(
-                            new_laptop,
-                            report_path=saved_report_path,
-                            report_html_content=raw_content,
-                            report_filename=filename,
-                            battery_report_path=saved_bat_path,
-                            battery_report_content=bat_raw,
-                            battery_report_filename=bat_filename
-                        )
-                        if drive_res.get("success"):
-                            d_url = drive_res.get("laptop_folder_url", "")
-                            if d_url:
-                                database.update_laptop(new_laptop["id"], {"gdrive_folder_url": d_url})
-                                new_laptop["gdrive_folder_url"] = d_url
-                            drive_result = drive_res
-                    except Exception as d_err:
-                        print(f"Notice: Google Drive sync skipped: {d_err}")
-                else:
-                    drive_result = {"skipped": True, "reason": "skip_gdrive flag set by client"}
+                    def _async_sync_new(target_laptop, rep_path, rep_html, rep_fname, bat_path, bat_html, bat_fname):
+                        try:
+                            drive_res = gdrive_sync.sync_laptop_to_drive(
+                                target_laptop,
+                                report_path=rep_path,
+                                report_html_content=rep_html,
+                                report_filename=rep_fname,
+                                battery_report_path=bat_path,
+                                battery_report_content=bat_html,
+                                battery_report_filename=bat_fname
+                            )
+                            if drive_res.get("success"):
+                                d_url = drive_res.get("laptop_folder_url", "")
+                                if d_url:
+                                    database.update_laptop(target_laptop["id"], {"gdrive_folder_url": d_url})
+                        except Exception as d_err:
+                            print(f"Notice: Google Drive background sync: {d_err}")
+
+                    threading.Thread(
+                        target=_async_sync_new,
+                        args=(new_laptop, saved_report_path, raw_content, filename, saved_bat_path, bat_raw, bat_filename),
+                        daemon=True
+                    ).start()
 
                 return self.send_json({
                     "success": True,
                     "message": f"Report '{filename}' imported successfully for {company_name}",
-                    "laptop": new_laptop,
-                    "gdrive": drive_result
+                    "laptop": new_laptop
                 }, 201)
             except Exception as e:
                 logging.exception("Upload-import handler failed")
@@ -1102,34 +1107,33 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 except Exception:
                     pass
 
-            # 1. Delete associated local HTML/JSON report files if present
-            if laptop:
-                try:
-                    rep_name = laptop.get("report_filename", "")
-                    if rep_name:
-                        for ext_file in [rep_name, rep_name.replace(".html", ".json")]:
-                            fpath = os.path.join(BASE_DIR, ext_file)
-                            if os.path.exists(fpath):
-                                os.remove(fpath)
-                except Exception:
-                    pass
-
-            # 2. Delete folder, files, and entry from Google Drive
-            drive_del_res = None
-            try:
-                target_lap = laptop or {"id": laptop_id}
-                drive_del_res = gdrive_sync.delete_laptop_from_drive(target_lap)
-                gdrive_sync.remove_laptop_from_master_inventory(laptop_id)
-            except Exception as e:
-                print(f"Notice: Google Drive deletion: {e}")
-
-            # 3. Delete record from SQLite database
+            # 1. Immediate database deletion (Supabase + local SQLite - instantaneous)
             database.delete_laptop(laptop_id)
+
+            # 2. Async background cleanup of local files and Google Drive (zero wait time for user)
+            def _async_delete_cleanup(target_lap, lid):
+                try:
+                    if target_lap:
+                        rep_name = target_lap.get("report_filename", "")
+                        if rep_name:
+                            for ext_file in [rep_name, rep_name.replace(".html", ".json")]:
+                                fpath = os.path.join(BASE_DIR, ext_file)
+                                if os.path.exists(fpath):
+                                    try:
+                                        os.remove(fpath)
+                                    except Exception:
+                                        pass
+                    tl = target_lap or {"id": lid}
+                    gdrive_sync.delete_laptop_from_drive(tl)
+                    gdrive_sync.remove_laptop_from_master_inventory(lid)
+                except Exception as e:
+                    print(f"Notice: Background cleanup: {e}")
+
+            threading.Thread(target=_async_delete_cleanup, args=(laptop, laptop_id), daemon=True).start()
 
             return self.send_json({
                 "success": True,
-                "message": f"Laptop {laptop_id} and its Google Drive files deleted successfully",
-                "gdrive": drive_del_res
+                "message": f"Laptop {laptop_id} deleted successfully"
             })
 
         return self.send_json({"error": f"DELETE endpoint not found: {path}"}, 404)

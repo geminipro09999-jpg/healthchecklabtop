@@ -10,12 +10,61 @@ import uuid
 import time
 import tempfile
 from datetime import datetime
+import requests
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if os.environ.get("VERCEL") or not os.access(BASE_DIR, os.W_OK):
     DB_PATH = os.path.join(tempfile.gettempdir(), "laptops.db")
 else:
     DB_PATH = os.path.join(BASE_DIR, "laptops.db")
+
+def get_supabase_config():
+    """Reads Supabase URL and Key from environment or config.json."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY")
+    if url and key:
+        return url, key
+    try:
+        cfg_path = os.path.join(BASE_DIR, "config.json")
+        if os.path.exists(cfg_path):
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+                sb = cfg.get("supabase", {})
+                return sb.get("url"), sb.get("key")
+    except Exception:
+        pass
+    return None, None
+
+def supabase_request(method, endpoint, params=None, json_data=None, prefer=None):
+    """Executes a PostgREST API request against the Supabase database."""
+    url, key = get_supabase_config()
+    if not url or not key:
+        return None
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}"
+    }
+    if json_data is not None:
+        headers["Content-Type"] = "application/json"
+    if prefer:
+        headers["Prefer"] = prefer
+    
+    full_url = f"{url.rstrip('/')}/rest/v1/{endpoint.lstrip('/')}"
+    try:
+        resp = requests.request(method, full_url, headers=headers, params=params, json=json_data, timeout=8)
+        if resp.ok:
+            if resp.text:
+                try:
+                    return resp.json()
+                except Exception:
+                    return resp.text
+            return True
+        else:
+            print(f"Supabase error ({resp.status_code}): {resp.text}")
+            return None
+    except Exception as e:
+        print(f"Supabase request error: {e}")
+        return None
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -191,6 +240,35 @@ def seed_existing_reports(conn):
                 print(f"Error seeding {fname}: {e}")
 
 def get_companies():
+    sb_cfg = get_supabase_config()
+    if sb_cfg[0] and sb_cfg[1]:
+        try:
+            comps = supabase_request("GET", "companies?select=id,name")
+            if comps is not None and isinstance(comps, list):
+                laps = supabase_request("GET", "laptops?select=company_name")
+                counts = {}
+                if laps and isinstance(laps, list):
+                    for l in laps:
+                        cn = l.get("company_name", "")
+                        counts[cn] = counts.get(cn, 0) + 1
+                result = []
+                for c in comps:
+                    c_name = c.get("name", "")
+                    result.append({
+                        "id": c.get("id"),
+                        "name": c_name,
+                        "laptop_count": counts.get(c_name, 0)
+                    })
+                def sort_key(item):
+                    n = item.get("name", "")
+                    if n == "UNICOMTIC": return 0
+                    if n == "Unassigned / Retail": return 2
+                    return 1
+                result.sort(key=lambda x: (sort_key(x), x.get("name", "")))
+                return result
+        except Exception as e:
+            print(f"Notice: Supabase get_companies fallback: {e}")
+
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -214,6 +292,14 @@ def add_company(name: str):
     name = name.strip()
     if not name:
         return False, "Company name cannot be empty"
+
+    sb_cfg = get_supabase_config()
+    if sb_cfg[0] and sb_cfg[1]:
+        try:
+            supabase_request("POST", "companies", json_data={"name": name}, prefer="resolution=merge-duplicates")
+        except Exception:
+            pass
+
     conn = get_connection()
     cursor = conn.cursor()
     try:
@@ -223,9 +309,58 @@ def add_company(name: str):
         return True, "Company added"
     except sqlite3.IntegrityError:
         conn.close()
-        return False, "Company already exists"
+        return True, "Company already exists"
 
 def get_laptops(company=None, search=None, status=None):
+    sb_cfg = get_supabase_config()
+    if sb_cfg[0] and sb_cfg[1]:
+        try:
+            params = {
+                "select": "*",
+                "order": "created_at.desc"
+            }
+            if company and company.strip() and company != "All":
+                params["company_name"] = f"eq.{company.strip()}"
+            if status and status.strip() and status != "All":
+                st = status.strip()
+                params["or"] = f"(overall_status.eq.{st},service_status.eq.{st})"
+
+            res = supabase_request("GET", "laptops", params=params)
+            if res is not None and isinstance(res, list):
+                result = []
+                for r in res:
+                    d = dict(r)
+                    if isinstance(d.get("complaints"), str):
+                        try:
+                            d["complaints"] = json.loads(d["complaints"])
+                        except Exception:
+                            d["complaints"] = [d["complaints"]]
+                    elif not d.get("complaints"):
+                        d["complaints"] = []
+                    
+                    if isinstance(d.get("report_data"), str):
+                        try:
+                            d["report_data"] = json.loads(d["report_data"])
+                        except Exception:
+                            d["report_data"] = {}
+
+                    if search and search.strip():
+                        term = search.strip().lower()
+                        match = (
+                            term in (d.get("device_name") or "").lower() or
+                            term in (d.get("model") or "").lower() or
+                            term in (d.get("serial_number") or "").lower() or
+                            term in (d.get("customer_name") or "").lower() or
+                            any(term in str(c).lower() for c in d.get("complaints", []))
+                        )
+                        if not match:
+                            continue
+
+                    result.append(d)
+                return result
+        except Exception as e:
+            print(f"Notice: Supabase get_laptops fallback: {e}")
+
     if os.environ.get("VERCEL"):
         sync_db_from_gdrive_if_needed()
     conn = get_connection()
@@ -264,6 +399,28 @@ def get_laptops(company=None, search=None, status=None):
     return result
 
 def get_laptop(laptop_id: str):
+    sb_cfg = get_supabase_config()
+    if sb_cfg[0] and sb_cfg[1]:
+        try:
+            res = supabase_request("GET", "laptops", params={"id": f"eq.{laptop_id}", "limit": "1"})
+            if res and isinstance(res, list) and len(res) > 0:
+                d = dict(res[0])
+                if isinstance(d.get("complaints"), str):
+                    try:
+                        d["complaints"] = json.loads(d["complaints"])
+                    except Exception:
+                        d["complaints"] = [d["complaints"]]
+                elif not d.get("complaints"):
+                    d["complaints"] = []
+                if isinstance(d.get("report_data"), str):
+                    try:
+                        d["report_data"] = json.loads(d["report_data"])
+                    except Exception:
+                        d["report_data"] = {}
+                return d
+        except Exception as e:
+            print(f"Notice: Supabase get_laptop fallback: {e}")
+
     if os.environ.get("VERCEL"):
         sync_db_from_gdrive_if_needed()
     conn = get_connection()
@@ -286,6 +443,24 @@ def get_laptop(laptop_id: str):
 
 def get_report_html_by_filename(filename: str) -> str:
     """Finds stored report_html or battery_report_html by filename or laptop id."""
+    sb_cfg = get_supabase_config()
+    if sb_cfg[0] and sb_cfg[1]:
+        try:
+            clean_id = filename.replace(".html", "")
+            res = supabase_request("GET", "laptops", params={
+                "or": f"(report_filename.eq.{filename},id.eq.{clean_id},battery_report_filename.eq.{filename})",
+                "select": "report_html,battery_report_html,report_filename,battery_report_filename",
+                "limit": "1"
+            })
+            if res and isinstance(res, list) and len(res) > 0:
+                item = res[0]
+                if filename == item.get("battery_report_filename") and item.get("battery_report_html"):
+                    return item.get("battery_report_html")
+                if item.get("report_html"):
+                    return item.get("report_html")
+        except Exception as e:
+            print(f"Notice: Supabase get_report_html fallback: {e}")
+
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT report_html FROM laptops WHERE report_filename = ? OR id = ? LIMIT 1", (filename, filename.replace(".html", "")))
@@ -309,15 +484,30 @@ def find_duplicate_laptop(serial_number: str = None, device_name: str = None, co
     Checks if a machine with the same serial number (or device name within the same company) already exists.
     Returns existing laptop dict or None.
     """
-    conn = get_connection()
-    cursor = conn.cursor()
-    
     clean_serial = (serial_number or "").strip()
     clean_dev = (device_name or "").strip()
     clean_comp = (company_name or "").strip()
-    
-    # Generic serial placeholders that are not unique across machines
     generic_serials = {"", "n/a", "none", "default string", "system serial number", "to be filled by o.e.m.", "0123456789"}
+
+    sb_cfg = get_supabase_config()
+    if sb_cfg[0] and sb_cfg[1]:
+        try:
+            if clean_serial and clean_serial.lower() not in generic_serials:
+                res = supabase_request("GET", "laptops", params={"serial_number": f"ilike.{clean_serial}", "limit": "1"})
+                if res and isinstance(res, list) and len(res) > 0:
+                    return res[0]
+            if clean_dev:
+                params = {"device_name": f"ilike.{clean_dev}", "limit": "1"}
+                if clean_comp and clean_comp != "All":
+                    params["company_name"] = f"ilike.{clean_comp}"
+                res = supabase_request("GET", "laptops", params=params)
+                if res and isinstance(res, list) and len(res) > 0:
+                    return res[0]
+        except Exception as e:
+            print(f"Notice: Supabase find_duplicate fallback: {e}")
+
+    conn = get_connection()
+    cursor = conn.cursor()
     
     # 1. Unique match by real serial number
     if clean_serial and clean_serial.lower() not in generic_serials:
@@ -342,23 +532,67 @@ def find_duplicate_laptop(serial_number: str = None, device_name: str = None, co
     return None
 
 def create_laptop(data: dict):
-    conn = get_connection()
-    cursor = conn.cursor()
-    
     lap_id = data.get("id") or f"LAP-{int(time.time() % 100000):05d}"
     company = data.get("company_name", "UNICOMTIC").strip() or "UNICOMTIC"
-    
-    # Auto-add company if doesn't exist
-    cursor.execute("INSERT OR IGNORE INTO companies (name) VALUES (?)", (company,))
     
     complaints = data.get("complaints", [])
     if isinstance(complaints, list):
         complaints_json = json.dumps(complaints)
+        complaints_list = complaints
     else:
         complaints_json = json.dumps([str(complaints)])
+        complaints_list = [str(complaints)]
         
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
+
+    # 1. Upsert to Supabase
+    sb_cfg = get_supabase_config()
+    if sb_cfg[0] and sb_cfg[1]:
+        try:
+            supabase_request("POST", "companies", json_data={"name": company}, prefer="resolution=merge-duplicates")
+            rd = data.get("report_data", {})
+            if isinstance(rd, str):
+                try:
+                    rd = json.loads(rd)
+                except Exception:
+                    rd = {}
+            sb_row = {
+                "id": lap_id,
+                "company_name": company,
+                "customer_name": data.get("customer_name", ""),
+                "customer_phone": data.get("customer_phone", ""),
+                "device_name": data.get("device_name", "Laptop"),
+                "model": data.get("model", ""),
+                "serial_number": data.get("serial_number", ""),
+                "cpu": data.get("cpu", ""),
+                "ram": data.get("ram", ""),
+                "storage": data.get("storage", ""),
+                "gpu": data.get("gpu", ""),
+                "battery_health": int(data.get("battery_health", 100)),
+                "overall_status": data.get("overall_status", "Healthy"),
+                "service_status": data.get("service_status", "Received"),
+                "complaints": complaints_list,
+                "photo_screen": data.get("photo_screen", ""),
+                "photo_top": data.get("photo_top", ""),
+                "photo_base": data.get("photo_base", ""),
+                "report_filename": data.get("report_filename", ""),
+                "report_data": rd,
+                "report_html": data.get("report_html", ""),
+                "battery_report_filename": data.get("battery_report_filename", ""),
+                "battery_report_html": data.get("battery_report_html", ""),
+                "battery_cycle_count": str(data.get("battery_cycle_count", "")),
+                "gdrive_folder_url": data.get("gdrive_folder_url", ""),
+                "created_at": data.get("created_at") or now,
+                "updated_at": now
+            }
+            supabase_request("POST", "laptops", json_data=sb_row, prefer="resolution=merge-duplicates")
+        except Exception as e:
+            print(f"Notice: Supabase create_laptop sync: {e}")
+
+    # 2. Mirror to SQLite
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO companies (name) VALUES (?)", (company,))
     cursor.execute("""
     INSERT OR REPLACE INTO laptops (
         id, company_name, customer_name, customer_phone,
@@ -401,19 +635,13 @@ def create_laptop(data: dict):
     conn.close()
     laptop = get_laptop(lap_id)
     try:
-        import gdrive_sync
-        gdrive_sync.update_laptop_in_master_inventory(laptop)
+        import threading, gdrive_sync
+        threading.Thread(target=gdrive_sync.update_laptop_in_master_inventory, args=(laptop,), daemon=True).start()
     except Exception as e:
-        print(f"Notice: Master inventory update failed on create: {e}")
+        pass
     return laptop
 
 def update_laptop(laptop_id: str, data: dict):
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    fields = []
-    values = []
-    
     updatable = [
         "company_name", "customer_name", "customer_phone", "device_name", "model",
         "serial_number", "cpu", "ram", "storage", "gpu", "battery_health",
@@ -422,6 +650,32 @@ def update_laptop(laptop_id: str, data: dict):
         "battery_report_filename", "battery_report_html", "battery_cycle_count",
         "gdrive_folder_url"
     ]
+
+    # 1. Update Supabase
+    sb_cfg = get_supabase_config()
+    if sb_cfg[0] and sb_cfg[1]:
+        try:
+            sb_update = {}
+            for k in updatable:
+                if k in data:
+                    sb_update[k] = data[k]
+            if "complaints" in data:
+                c = data["complaints"]
+                sb_update["complaints"] = c if isinstance(c, list) else [str(c)]
+            if "report_data" in data:
+                rd = data["report_data"]
+                sb_update["report_data"] = json.loads(rd) if isinstance(rd, str) else rd
+            sb_update["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            supabase_request("PATCH", f"laptops?id=eq.{laptop_id}", json_data=sb_update)
+        except Exception as e:
+            print(f"Notice: Supabase update_laptop sync: {e}")
+
+    # 2. Update SQLite
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    fields = []
+    values = []
     
     for k in updatable:
         if k in data:
@@ -451,14 +705,24 @@ def update_laptop(laptop_id: str, data: dict):
     conn.close()
     laptop = get_laptop(laptop_id)
     try:
-        import gdrive_sync
-        gdrive_sync.update_laptop_in_master_inventory(laptop)
+        import threading, gdrive_sync
+        threading.Thread(target=gdrive_sync.update_laptop_in_master_inventory, args=(laptop,), daemon=True).start()
     except Exception as e:
-        print(f"Notice: Master inventory update failed on update: {e}")
+        pass
     return laptop
 
 def delete_laptop(laptop_id: str):
     laptop = get_laptop(laptop_id)
+
+    # 1. Delete from Supabase
+    sb_cfg = get_supabase_config()
+    if sb_cfg[0] and sb_cfg[1]:
+        try:
+            supabase_request("DELETE", f"laptops?id=eq.{laptop_id}")
+        except Exception as e:
+            print(f"Notice: Supabase delete_laptop sync: {e}")
+
+    # 2. Delete from SQLite
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM laptops WHERE id = ?", (laptop_id,))
@@ -467,8 +731,8 @@ def delete_laptop(laptop_id: str):
     conn.close()
     if deleted and laptop:
         try:
-            import gdrive_sync
-            gdrive_sync.delete_laptop_from_drive(laptop)
+            import threading, gdrive_sync
+            threading.Thread(target=gdrive_sync.delete_laptop_from_drive, args=(laptop,), daemon=True).start()
         except Exception:
             pass
     return deleted

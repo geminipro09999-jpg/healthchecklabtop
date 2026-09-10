@@ -2,9 +2,15 @@
 title Laptop Fleet Health Dashboard
 cd /d "%~dp0"
 
-echo Opening Laptop Fleet Health Dashboard in your browser...
-start "" "http://localhost:8080/Dashboard.html"
-
-echo.
-echo If the dashboard does not load, run Start-Mobile-Server.bat first.
-timeout /t 3 >nul
+echo [*] Checking local dashboard server...
+powershell -NoProfile -Command "try { `$r = Invoke-WebRequest -Uri 'http://localhost:8080/api/server-info' -TimeoutSec 1 -UseBasicParsing; exit 0 } catch { exit 1 }" >nul 2>&1
+if %errorLevel% equ 0 (
+    echo [*] Opening Local Dashboard at http://localhost:8080/Dashboard.html ...
+    start "" "http://localhost:8080/Dashboard.html"
+) else (
+    echo [*] Local server not running. Starting local server...
+    start "" cmd /c "%~dp0Start-Mobile-Server.bat"
+    timeout /t 2 >nul
+    start "" "http://localhost:8080/Dashboard.html"
+)
+timeout /t 2 >nul

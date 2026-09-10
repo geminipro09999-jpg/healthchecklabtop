@@ -9,5 +9,9 @@
     "service_account_json": "service_account.json",
     "parent_folder_id": "1cfYrNewvM1tmCumcV5pKEsq0fPvq-fGZ",
     "folder_name_prefix": "LaptopHealth_"
+  },
+  "supabase": {
+    "url": "https://dfpgladflvrjopbcxbxh.supabase.co",
+    "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmcGdsYWRmbHZyam9wYmN4YnhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTAzNDc4NCwiZXhwIjoyMTA0NjEwNzg0fQ.obVZjFLtxofNhlYBrxQRPVtKko3gnShvo-Yhyxw2Hvk"
   }
 }
