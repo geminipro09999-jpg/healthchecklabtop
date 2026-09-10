@@ -294,6 +294,21 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 pass
             return self.send_json({"success": True, "local_ip": get_local_ip(), "port": port})
 
+        if path == "/api/gdrive/status":
+            sa_path = os.path.join(BASE_DIR, "service_account.json")
+            has_sa = os.path.exists(sa_path)
+            return self.send_json({
+                "success": True,
+                "configured": has_sa,
+                "details": {"email": "service-account@gdrive" if has_sa else ""},
+                "parent_folder_id": "LaptopHealth"
+            })
+
+        if path == "/favicon.ico":
+            self.send_response(204)
+            self.end_headers()
+            return
+
         if path == "/api/companies":
             companies = database.get_companies()
             return self.send_json({"success": True, "companies": companies})
