@@ -1041,9 +1041,7 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 "gdrive": drive_result
             }, 201)
 
-                    except Exception as e:
-                logging.exception("Upload-import handler failed")
-                return self.send_json({"error": "Internal server error"}, 500)
+
 
         # 9. Sync Laptop to Google Drive on Demand (Admin only)
         if path.startswith("/api/gdrive/sync/"):
