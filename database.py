@@ -361,8 +361,6 @@ def get_laptops(company=None, search=None, status=None):
         except Exception as e:
             print(f"Notice: Supabase get_laptops fallback: {e}")
 
-    if os.environ.get("VERCEL"):
-        sync_db_from_gdrive_if_needed()
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -421,8 +419,6 @@ def get_laptop(laptop_id: str):
         except Exception as e:
             print(f"Notice: Supabase get_laptop fallback: {e}")
 
-    if os.environ.get("VERCEL"):
-        sync_db_from_gdrive_if_needed()
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM laptops WHERE id = ?", (laptop_id,))
@@ -738,29 +734,5 @@ def delete_laptop(laptop_id: str):
     return deleted
 
 def sync_db_from_gdrive_if_needed():
-    """Syncs database from Google Drive laptops_inventory.json, ensuring SQLite matches Drive."""
-    try:
-        import gdrive_sync
-        drive_laptops = gdrive_sync.get_master_inventory_from_drive()
-        if drive_laptops is None:
-            return
-
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM laptops")
-        local_ids = {row[0] for row in cursor.fetchall()}
-        drive_ids = {l.get("id") for l in drive_laptops if l.get("id")}
-        
-        # Insert/update all laptops from Google Drive
-        for lap in drive_laptops:
-            create_laptop(lap)
-
-        # Remove local laptops that have been deleted from Google Drive
-        to_delete = local_ids - drive_ids
-        for del_id in to_delete:
-            cursor.execute("DELETE FROM laptops WHERE id = ?", (del_id,))
-
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"Notice: GDrive sync check: {e}")
+    """No-op: Database is powered by Supabase PostgreSQL."""
+    return

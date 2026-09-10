@@ -133,14 +133,38 @@ def parse_html_report_text(html_content: str) -> dict:
     m_gpu = re.search(r'Graphics \(GPU\)</strong></td>\s*<td>([^<]+)</td>', html_content, re.IGNORECASE)
     data["gpu"] = m_gpu.group(1).strip() if m_gpu else ""
 
-    # Battery & Cycle Count
-    m_bat = re.search(r'Battery</strong></td>\s*<td>([^<]+)</td>', html_content, re.IGNORECASE)
+    # Battery Health (Wear), Current Charge & Cycle Count
+    m_wear = re.search(r'Battery Health \(Wear\)[^<]*</span>\s*<span[^>]*>([0-9.]+)', html_content, re.IGNORECASE)
+    m_hlth = re.search(r'Health:\s*([0-9.]+)%', html_content, re.IGNORECASE)
+    m_kpi_bat = re.search(r'Battery / Power</div>\s*<div class="kpi-value">([0-9.]+)%', html_content, re.IGNORECASE)
+
     bat_val = 100
-    if m_bat:
-        m_num = re.search(r'(\d+)%', m_bat.group(1))
-        if m_num:
-            bat_val = int(m_num.group(1))
+    if m_wear:
+        try:
+            bat_val = round(float(m_wear.group(1)))
+        except Exception:
+            pass
+    elif m_hlth:
+        try:
+            bat_val = round(float(m_hlth.group(1)))
+        except Exception:
+            pass
+    elif m_kpi_bat:
+        try:
+            bat_val = round(float(m_kpi_bat.group(1)))
+        except Exception:
+            pass
     data["battery_health"] = bat_val
+
+    # Current Charge
+    m_charge = re.search(r'Current Charge</span>\s*<span[^>]*>([^<]+)</span>', html_content, re.IGNORECASE)
+    if not m_charge:
+        m_charge = re.search(r'Charge:\s*([0-9.]+%?)', html_content, re.IGNORECASE)
+    data["battery_charge"] = m_charge.group(1).strip() if m_charge else "N/A"
+
+    # Power Status
+    m_pwr = re.search(r'Power Status</span>\s*<span[^>]*>([^<]+)</span>', html_content, re.IGNORECASE)
+    data["battery_status"] = m_pwr.group(1).strip() if m_pwr else ""
 
     m_cyc = re.search(r'Battery Cycle Count</span>\s*<span[^>]*>([^<]+)</span>', html_content, re.IGNORECASE)
     if m_cyc:
@@ -608,8 +632,11 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 if isinstance(gpu, list):
                     gpu = ", ".join(gpu)
                 bat_val = data.get("batteryHealthPercent") or data.get("BatteryHealthPercent", 100)
+                bat = 100
                 try:
-                    bat = int(bat_val)
+                    m_b = re.search(r'([0-9.]+)', str(bat_val))
+                    if m_b:
+                        bat = round(float(m_b.group(1)))
                 except Exception:
                     bat = 100
                 score = data.get("healthScore", 100)
@@ -694,6 +721,18 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                     if filename.endswith(".json"):
                         try:
                             p_json = json.loads(raw_content)
+                            raw_bat = p_json.get("batteryHealthPercent") or p_json.get("BatteryHealthPercent") or 100
+                            b_val = 100
+                            try:
+                                m_b = re.search(r'([0-9.]+)', str(raw_bat))
+                                if m_b:
+                                    b_val = round(float(m_b.group(1)))
+                            except Exception:
+                                pass
+
+                            b_charge = p_json.get("batteryCharge") or p_json.get("BatteryCharge") or "N/A"
+                            b_status = p_json.get("batteryStatus") or p_json.get("BatteryStatus") or ""
+
                             parsed = {
                                 "device_name": p_json.get("deviceName", "PC"),
                                 "model": f"{p_json.get('manufacturer', '')} {p_json.get('model', '')}".strip(),
@@ -702,7 +741,10 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                                 "ram": f"{p_json.get('ramTotalGB', 0)} GB",
                                 "storage": p_json.get("disks", ""),
                                 "gpu": p_json.get("gpu", ""),
-                                "battery_health": int(p_json.get("batteryHealthPercent", 100)),
+                                "battery_health": b_val,
+                                "battery_charge": b_charge,
+                                "battery_status": b_status,
+                                "battery_cycle_count": str(p_json.get("batteryCycleCount", "N/A")),
                                 "overall_status": "Healthy" if p_json.get("healthScore", 100) >= 80 else ("Warning" if p_json.get("healthScore", 100) >= 50 else "Critical"),
                                 "complaints": p_json.get("failingHardwares", []) + p_json.get("warnings", []),
                             }
@@ -896,6 +938,18 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 if filename.endswith(".json"):
                     try:
                         p_json = json.loads(raw_content)
+                        raw_bat = p_json.get("batteryHealthPercent") or p_json.get("BatteryHealthPercent") or 100
+                        b_val = 100
+                        try:
+                            m_b = re.search(r'([0-9.]+)', str(raw_bat))
+                            if m_b:
+                                b_val = round(float(m_b.group(1)))
+                        except Exception:
+                            pass
+
+                        b_charge = p_json.get("batteryCharge") or p_json.get("BatteryCharge") or "N/A"
+                        b_status = p_json.get("batteryStatus") or p_json.get("BatteryStatus") or ""
+
                         parsed = {
                             "device_name": p_json.get("deviceName", "PC"),
                             "model": f"{p_json.get('manufacturer', '')} {p_json.get('model', '')}".strip(),
@@ -904,7 +958,10 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                             "ram": f"{p_json.get('ramTotalGB', 0)} GB",
                             "storage": p_json.get("disks", ""),
                             "gpu": p_json.get("gpu", ""),
-                            "battery_health": int(p_json.get("batteryHealthPercent", 100)),
+                            "battery_health": b_val,
+                            "battery_charge": b_charge,
+                            "battery_status": b_status,
+                            "battery_cycle_count": str(p_json.get("batteryCycleCount", "N/A")),
                             "overall_status": "Healthy" if p_json.get("healthScore", 100) >= 80 else ("Warning" if p_json.get("healthScore", 100) >= 50 else "Critical"),
                             "complaints": p_json.get("failingHardwares", []) + p_json.get("warnings", [])
                         }
