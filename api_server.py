@@ -16,8 +16,7 @@ import base64
 import urllib.parse
 import re
 import time
-from http.server import SimpleHTTPRequestHandler
-from socketserver import ThreadingHTTPServer
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang=\"en\">
