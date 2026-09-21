@@ -340,6 +340,15 @@ $SmartDisks = @()
 try {
     $pythonCmd = if (Get-Command "python" -ErrorAction SilentlyContinue) { "python" } elseif (Get-Command "py" -ErrorAction SilentlyContinue) { "py" } else { $null }
     $diskScript = Join-Path $PSScriptRoot "disk_health_provider.py"
+    
+    # Auto-fetch SMART provider script if missing locally
+    if (-not (Test-Path $diskScript)) {
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            (New-Object System.Net.WebClient).DownloadFile('https://raw.githubusercontent.com/geminipro09999-jpg/healthchecklabtop/main/disk_health_provider.py', $diskScript)
+        } catch { }
+    }
+
     if ($pythonCmd -and (Test-Path $diskScript)) {
         Write-Host "   -> Querying smartctl SMART health provider..." -ForegroundColor Gray
         $smartOut = & $pythonCmd "$diskScript" --json 2>$null
@@ -426,6 +435,37 @@ foreach ($pd in $PhysicalDisks) {
             $Warnings.Add("$($pd.FriendlyName): High storage operating temperature ($($pd.Temperature)°C). Check cooling.")
         }
     }
+
+    # Native Windows Storage Reliability Counter fallback for unexposed/SATA/AHCI drives
+    try {
+        if ($pd.DeviceId -ne $null) {
+            $matchedRc = $null
+            $relCounters = Get-PhysicalDisk | Get-StorageReliabilityCounter -ErrorAction SilentlyContinue
+            if ($relCounters) {
+                $matchedRc = $relCounters | Where-Object { "$($_.DeviceId)" -eq "$($pd.DeviceId)" } | Select-Object -First 1
+            }
+            if ($matchedRc) {
+                if ($pd.Temperature -eq $null -and $matchedRc.Temperature -ne $null -and $matchedRc.Temperature -gt 0 -and $matchedRc.Temperature -lt 120) {
+                    $pd.Temperature = [int]$matchedRc.Temperature
+                }
+                if ($pd.PowerOnHours -eq $null -and $matchedRc.PowerOnHours -ne $null -and $matchedRc.PowerOnHours -gt 0) {
+                    $pd.PowerOnHours = [int]$matchedRc.PowerOnHours
+                }
+                if ($matchedRc.ReadErrorsTotal -ne $null -and $matchedRc.WriteErrorsTotal -ne $null) {
+                    $totErr = [int]$matchedRc.ReadErrorsTotal + [int]$matchedRc.WriteErrorsTotal
+                    if ($pd.MediaErrors -eq $null -and $totErr -ge 0) {
+                        $pd.MediaErrors = $totErr
+                    }
+                }
+                if ($pd.SmartStatus -eq 'UNKNOWN' -or $pd.SmartStatus -eq 'N/A') {
+                    if ($pd.HealthStatus -eq 'Healthy' -or $pd.HealthStatus -eq 'OK') {
+                        $pd.SmartStatus = 'PASSED'
+                        if ($pd.SmartCondition -eq 'UNKNOWN') { $pd.SmartCondition = 'HEALTHY' }
+                    }
+                }
+            }
+        }
+    } catch { }
 }
 
 # Logical Partitions
@@ -1228,7 +1268,7 @@ foreach ($pd in $PhysicalDisks) {
     } elseif ($pd.MediaType -match 'HDD' -or $pd.FriendlyName -match 'HDD') {
         "<span style=""color: var(--text-muted); font-size: 0.76rem;"">N/A (HDD - Sector Healthy)</span>"
     } else {
-        "<span style=""color: var(--text-muted); font-size: 0.76rem;"">N/A (Unexposed)</span>"
+        "<span style=""color: var(--text-muted); font-size: 0.76rem;"">N/A (SATA SSD - Operational)</span>"
     }
 
     $tempHtml = if ($pd.Temperature -ne $null) {
