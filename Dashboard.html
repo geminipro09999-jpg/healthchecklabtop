@@ -1747,9 +1747,43 @@ function openPhotoModal(laptopId) {
     renderPhotoSlot('top', currentModalPhotos.top);
     renderPhotoSlot('base', currentModalPhotos.base);
 
-    // Disable upload button if not admin
+    // Update upload button and admin banner
     const saveBtn = document.getElementById('btnSavePhotos');
-    if (saveBtn) saveBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+    if (saveBtn) {
+        saveBtn.style.display = 'inline-flex';
+        if (isAdmin) {
+            saveBtn.innerHTML = '☁️ Upload &amp; Save Photos';
+            saveBtn.className = 'btn btn-primary';
+            saveBtn.onclick = savePhotosToServer;
+        } else {
+            saveBtn.innerHTML = '🔒 Log In as Admin to Upload';
+            saveBtn.className = 'btn btn-amber';
+            saveBtn.onclick = () => { openLoginModal(); };
+        }
+    }
+
+    // Photo modal admin banner
+    let banner = document.getElementById('photoModalAdminBanner');
+    if (!banner) {
+        const modalBody = document.querySelector('#photoModal .modal-body');
+        if (modalBody) {
+            banner = document.createElement('div');
+            banner.id = 'photoModalAdminBanner';
+            modalBody.insertBefore(banner, modalBody.firstChild);
+        }
+    }
+    if (banner) {
+        if (!isAdmin) {
+            banner.style.display = 'block';
+            banner.className = 'alert alert-warning';
+            banner.style.cursor = 'pointer';
+            banner.style.marginBottom = '12px';
+            banner.innerHTML = '🔒 <strong>Public View Mode:</strong> To take or upload laptop photos, please <span style="text-decoration: underline; font-weight: 700;">click here to Log In as Admin</span> (Default Password: <code>admin123</code>).';
+            banner.onclick = () => openLoginModal();
+        } else {
+            banner.style.display = 'none';
+        }
+    }
 
     stopLiveCamera();
     document.getElementById('photoModal').classList.add('active');
@@ -1898,7 +1932,10 @@ async function snapLivePhoto() {
 }
 
 function triggerPhotoCapture(slotName) {
-    if (!isAdmin) return;
+    if (!isAdmin) {
+        openLoginModal();
+        return;
+    }
     const camSection = document.getElementById('liveCameraSection');
     // If live camera is open, switch target slot
     if (camSection && camSection.style.display !== 'none') {
@@ -1907,7 +1944,10 @@ function triggerPhotoCapture(slotName) {
     }
     // Otherwise open native mobile camera / file picker
     const input = document.getElementById('input-photo-' + slotName);
-    if (input) input.click();
+    if (input) {
+        input.value = '';
+        input.click();
+    }
 }
 
 async function handlePhotoSelected(event, slotName) {
@@ -1926,6 +1966,8 @@ async function handlePhotoSelected(event, slotName) {
             renderPhotoSlot(slotName, e.target.result);
         };
         reader.readAsDataURL(file);
+    } finally {
+        event.target.value = '';
     }
 }
 
@@ -1941,11 +1983,14 @@ function renderPhotoSlot(slotName, url) {
         slot.classList.add('has-image');
         slot.innerHTML = `
             <img src="${formatPhotoUrl(url)}" alt="${titles[slotName]}" onerror="handleImgError(this)" onclick="openLightbox('${url.replace(/'/g, "\\'")}', '${titles[slotName]}')">
-            ${isAdmin ? `<button type="button" class="delete-btn" onclick="event.stopPropagation(); removeSlotPhoto('${slotName}')">&times;</button>` : ''}
+            <div style="position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; z-index: 10;">
+                ${isAdmin ? `<button type="button" class="btn btn-primary" style="padding: 2px 7px; font-size: 0.7rem; border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.4);" onclick="event.stopPropagation(); triggerPhotoCapture('${slotName}')" title="Change photo">🔄 Change</button>` : ''}
+                ${isAdmin ? `<button type="button" class="delete-btn" style="position: static;" onclick="event.stopPropagation(); removeSlotPhoto('${slotName}')" title="Delete photo">&times;</button>` : ''}
+            </div>
             <div style="position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,0.7); font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; color: #fff;">
                 ${titles[slotName]}
             </div>
-            <input type="file" id="input-photo-${slotName}" accept="image/*" capture="environment" style="display: none;" onchange="handlePhotoSelected(event, '${slotName}')">
+            <input type="file" id="input-photo-${slotName}" accept="image/*" style="display: none;" onchange="handlePhotoSelected(event, '${slotName}')">
         `;
     } else {
         slot.classList.remove('has-image');
@@ -1953,8 +1998,8 @@ function renderPhotoSlot(slotName, url) {
         slot.innerHTML = `
             <div class="slot-icon">${icons[slotName]}</div>
             <div class="slot-title">${titles[slotName]}</div>
-            <div class="slot-desc">${isAdmin ? '📸 Tap to take photo' : 'No photo uploaded'}</div>
-            <input type="file" id="input-photo-${slotName}" accept="image/*" capture="environment" style="display: none;" onchange="handlePhotoSelected(event, '${slotName}')">
+            <div class="slot-desc">${isAdmin ? '📸 Tap / Click to choose photo' : '🔒 Log in as admin to upload'}</div>
+            <input type="file" id="input-photo-${slotName}" accept="image/*" style="display: none;" onchange="handlePhotoSelected(event, '${slotName}')">
         `;
     }
 }
@@ -1972,6 +2017,13 @@ async function openPhoneConnectModal() {
     if (!lapId) {
         alert('Please select a laptop record first.');
         return;
+    }
+
+    if (!isAdmin || !authToken) {
+        if (confirm('Admin login is required so your mobile phone can capture and save photos without logging in again. Log in now? (Default Password: admin123)')) {
+            openLoginModal();
+            return;
+        }
     }
 
     let origin = window.location.origin;
@@ -2015,27 +2067,31 @@ function copyPhoneConnectLink() {
 
 async function savePhotosToServer() {
     if (!isAdmin) {
-        alert('Admin login required to upload photos.');
+        openLoginModal();
         return;
     }
     const laptopId = document.getElementById('photoLaptopId').value;
+    if (!laptopId) {
+        alert('Please select a laptop record first.');
+        return;
+    }
     const saveBtn = document.getElementById('btnSavePhotos');
     saveBtn.disabled = true;
-    saveBtn.textContent = 'Uploading & Syncing...';
+    saveBtn.textContent = '⏳ Uploading & Saving...';
 
     try {
         const res = await fetch(`/api/laptops/${laptopId}/photos`, {
             method: 'POST',
             headers: getApiHeaders(),
             body: JSON.stringify({
-                photo_screen: currentModalPhotos.screen,
-                photo_top: currentModalPhotos.top,
-                photo_base: currentModalPhotos.base
+                photo_screen: currentModalPhotos.screen || '',
+                photo_top: currentModalPhotos.top || '',
+                photo_base: currentModalPhotos.base || ''
             })
         });
-        const data = await res.json();
+        const data = await safeJson(res);
         if (res.ok && data.success) {
-            alert('✅ ' + data.message + (data.gdrive && data.gdrive.success ? ' (Google Drive Synced!)' : ''));
+            alert('✅ ' + (data.message || 'Photos saved successfully!'));
             closeModal('photoModal');
             await fetchLaptops();
         } else {
@@ -2045,7 +2101,7 @@ async function savePhotosToServer() {
         alert('Upload error: ' + err.message);
     } finally {
         saveBtn.disabled = false;
-        saveBtn.textContent = '☁️ Upload & Sync Photos';
+        saveBtn.textContent = '☁️ Upload & Save Photos';
     }
 }
 

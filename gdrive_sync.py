@@ -18,6 +18,7 @@ import base64
 import zlib
 import mimetypes
 import logging
+import time
 import requests
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
@@ -34,13 +35,17 @@ VAULT_KEY = b"unicomtic_drive_key_2026"
 
 _cached_token = None
 _cached_creds = None
+_oauth_refresh_cooldown = 0
 
 def get_access_token():
     """Returns a valid Google OAuth2 access token (prioritizes user token.json/vault, falls back to service_account.json)."""
-    global _cached_token, _cached_creds
+    global _cached_token, _cached_creds, _oauth_refresh_cooldown
+
+    now = time.time()
+    can_try_oauth = now >= _oauth_refresh_cooldown
 
     # 1. Prioritize personal Google Account OAuth token from disk
-    if os.path.exists(TOKEN_FILE):
+    if can_try_oauth and os.path.exists(TOKEN_FILE):
         try:
             creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
             if creds and creds.expired and creds.refresh_token:
@@ -52,10 +57,14 @@ def get_access_token():
                 _cached_token = creds.token
                 return _cached_token, None
         except Exception as e:
-            logger.warning(f"OAuth token refresh error: {e}")
+            if "invalid_grant" in str(e):
+                _oauth_refresh_cooldown = now + 300
+                logger.warning("Google OAuth token expired/revoked. Run Connect-GoogleDrive.bat to reconnect.")
+            else:
+                logger.warning(f"OAuth token refresh error: {e}")
 
     # 1b. Prioritize encrypted vault on disk (Works automatically on Vercel without environment variables)
-    if os.path.exists(VAULT_FILE):
+    if can_try_oauth and os.path.exists(VAULT_FILE):
         try:
             with open(VAULT_FILE, "rb") as vf:
                 raw_enc = vf.read()
@@ -69,7 +78,10 @@ def get_access_token():
                 _cached_token = creds.token
                 return _cached_token, None
         except Exception as e:
-            logger.warning(f"Vault OAuth token error: {e}")
+            if "invalid_grant" in str(e):
+                _oauth_refresh_cooldown = now + 300
+            else:
+                logger.warning(f"Vault OAuth token error: {e}")
 
     # 1b. Prioritize personal Google Account OAuth token from env (Base64 or JSON)
     b64_token = os.environ.get("GDRIVE_TOKEN_B64")

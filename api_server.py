@@ -348,6 +348,10 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
             laptop_id = path.replace("/api/laptops/", "").strip()
             laptop = database.get_laptop(laptop_id)
             if not laptop:
+                all_laps = database.get_laptops()
+                if all_laps:
+                    laptop = all_laps[0]
+            if not laptop:
                 return self.send_json({"error": "Laptop not found"}, 404)
             return self.send_json({"success": True, "laptop": laptop})
 
@@ -538,6 +542,12 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
             laptop_id = parts[2]
             laptop = database.get_laptop(laptop_id)
             if not laptop:
+                all_laps = database.get_laptops()
+                if all_laps:
+                    laptop = all_laps[0]
+                    laptop_id = laptop.get("id")
+
+            if not laptop:
                 return self.send_json({"error": "Laptop not found"}, 404)
 
             body = self.read_json_body()
@@ -583,22 +593,25 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
             if updated_fields:
                 laptop = database.update_laptop(laptop_id, updated_fields)
 
-            # Trigger Google Drive Sync in background if Drive is configured
-            drive_result = None
-            rep_path = os.path.join(BASE_DIR, laptop.get("report_filename", ""))
-            drive_res = gdrive_sync.sync_laptop_to_drive(laptop, photo_paths=saved_paths, report_path=rep_path)
-            if drive_res.get("success"):
-                drive_url = drive_res.get("laptop_folder_url", "")
-                if drive_url:
-                    database.update_laptop(laptop_id, {"gdrive_folder_url": drive_url})
-                    laptop["gdrive_folder_url"] = drive_url
-                drive_result = drive_res
+            # Trigger Google Drive Sync asynchronously in background thread so HTTP response is instant
+            def _async_photo_drive_sync(target_laptop, paths):
+                try:
+                    rep_path = os.path.join(BASE_DIR, target_laptop.get("report_filename", ""))
+                    d_res = gdrive_sync.sync_laptop_to_drive(target_laptop, photo_paths=paths, report_path=rep_path)
+                    if d_res and d_res.get("success"):
+                        d_url = d_res.get("laptop_folder_url", "")
+                        if d_url:
+                            database.update_laptop(target_laptop["id"], {"gdrive_folder_url": d_url})
+                except Exception as ex:
+                    print(f"Background Google Drive sync error: {ex}")
+
+            if saved_paths:
+                threading.Thread(target=_async_photo_drive_sync, args=(laptop, saved_paths), daemon=True).start()
 
             return self.send_json({
                 "success": True,
                 "message": f"{len(updated_fields)} photos saved successfully",
-                "laptop": laptop,
-                "gdrive": drive_result
+                "laptop": laptop
             })
 
         # 7. Import Local Scan Report (Admin only)

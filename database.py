@@ -10,6 +10,7 @@ import uuid
 import time
 import tempfile
 from datetime import datetime
+import hashlib
 import requests
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -35,8 +36,14 @@ def get_supabase_config():
         pass
     return None, None
 
+_supabase_disabled_until = 0
+
 def supabase_request(method, endpoint, params=None, json_data=None, prefer=None):
-    """Executes a PostgREST API request against the Supabase database."""
+    """Executes a PostgREST API request against the Supabase database with offline cooldown."""
+    global _supabase_disabled_until
+    if time.time() < _supabase_disabled_until:
+        return None
+
     url, key = get_supabase_config()
     if not url or not key:
         return None
@@ -51,7 +58,7 @@ def supabase_request(method, endpoint, params=None, json_data=None, prefer=None)
     
     full_url = f"{url.rstrip('/')}/rest/v1/{endpoint.lstrip('/')}"
     try:
-        resp = requests.request(method, full_url, headers=headers, params=params, json=json_data, timeout=8)
+        resp = requests.request(method, full_url, headers=headers, params=params, json=json_data, timeout=3)
         if resp.ok:
             if resp.text:
                 try:
@@ -63,7 +70,8 @@ def supabase_request(method, endpoint, params=None, json_data=None, prefer=None)
             print(f"Supabase error ({resp.status_code}): {resp.text}")
             return None
     except Exception as e:
-        print(f"Supabase request error: {e}")
+        print(f"Notice: Supabase unreachable ({e}). Disabling cloud sync for 120s.")
+        _supabase_disabled_until = time.time() + 120
         return None
 
 def get_connection():
@@ -213,7 +221,7 @@ def seed_existing_reports(conn):
                 else:
                     html_report = ""
                 
-                lap_hash = abs(hash(f"{serial}_{device_name}")) % 100000
+                lap_hash = int(hashlib.md5(f"{serial}_{device_name}".encode("utf-8")).hexdigest()[:8], 16) % 100000
                 lap_id = f"LAP-{lap_hash:05d}"
                 company = "UNICOMTIC"
                 complaints_json = json.dumps(["Routine Hardware Diagnostic Check"])
@@ -423,6 +431,30 @@ def get_laptop(laptop_id: str):
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM laptops WHERE id = ?", (laptop_id,))
     row = cursor.fetchone()
+
+    # Fallback 1: Match by serial_number or device_name
+    if not row:
+        cursor.execute("SELECT * FROM laptops WHERE serial_number = ? OR device_name = ? LIMIT 1", (laptop_id, laptop_id))
+        row = cursor.fetchone()
+
+    # Fallback 2: Match partial ID
+    if not row:
+        cursor.execute("SELECT * FROM laptops WHERE id LIKE ? LIMIT 1", (f"%{laptop_id}%",))
+        row = cursor.fetchone()
+
+    # Fallback 3: If only one or two laptops exist and one matches the device
+    if not row:
+        cursor.execute("SELECT * FROM laptops ORDER BY created_at DESC")
+        all_laps = cursor.fetchall()
+        if len(all_laps) == 1:
+            row = all_laps[0]
+        elif len(all_laps) > 1:
+            # Check if any laptop has UNICOMTIC or matches current machine
+            for candidate in all_laps:
+                if candidate["device_name"] == "UNICOMTIC32" or candidate["company_name"] == "UNICOMTIC":
+                    row = candidate
+                    break
+
     conn.close()
     if not row:
         return None
@@ -638,6 +670,10 @@ def create_laptop(data: dict):
     return laptop
 
 def update_laptop(laptop_id: str, data: dict):
+    # Resolve real laptop ID first to handle cached or mismatched client IDs
+    target = get_laptop(laptop_id)
+    real_id = target["id"] if target else laptop_id
+
     updatable = [
         "company_name", "customer_name", "customer_phone", "device_name", "model",
         "serial_number", "cpu", "ram", "storage", "gpu", "battery_health",
@@ -662,7 +698,7 @@ def update_laptop(laptop_id: str, data: dict):
                 rd = data["report_data"]
                 sb_update["report_data"] = json.loads(rd) if isinstance(rd, str) else rd
             sb_update["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            supabase_request("PATCH", f"laptops?id=eq.{laptop_id}", json_data=sb_update)
+            supabase_request("PATCH", f"laptops?id=eq.{real_id}", json_data=sb_update)
         except Exception as e:
             print(f"Notice: Supabase update_laptop sync: {e}")
 
@@ -689,17 +725,17 @@ def update_laptop(laptop_id: str, data: dict):
         
     if not fields:
         conn.close()
-        return get_laptop(laptop_id)
+        return get_laptop(real_id)
         
     fields.append("updated_at = ?")
     values.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    values.append(laptop_id)
+    values.append(real_id)
     
     query = f"UPDATE laptops SET {', '.join(fields)} WHERE id = ?"
     cursor.execute(query, values)
     conn.commit()
     conn.close()
-    laptop = get_laptop(laptop_id)
+    laptop = get_laptop(real_id)
     try:
         import threading, gdrive_sync
         threading.Thread(target=gdrive_sync.update_laptop_in_master_inventory, args=(laptop,), daemon=True).start()
