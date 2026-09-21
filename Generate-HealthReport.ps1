@@ -63,6 +63,7 @@ $BatReportPath = [System.IO.Path]::Combine($OutputDir, $BatReportFileName)
 $HealthScore = 100
 $FailingHardwares = [System.Collections.Generic.List[PSCustomObject]]::new()
 $Warnings = [System.Collections.Generic.List[string]]::new()
+$Recommendations = [System.Collections.Generic.List[string]]::new()
 $Checklist = [System.Collections.Generic.List[PSCustomObject]]::new()
 
 # ---------------------------------------------------------
@@ -543,21 +544,24 @@ foreach ($ld in $logicalDrives) {
     $usd = [math]::Round(($tot - $fre), 1)
     $freePct = if ($tot -gt 0) { [math]::Round((($fre / $tot) * 100), 1) } else { 0 }
     
+    $volName = if ($ld.VolumeName) { $ld.VolumeName } else { "Local Disk" }
+    $isVirtualOrIso = ($volName -match '(?i)ISO|ESD-USB|Ventoy' -or ($tot -lt 10 -and $fre -eq 0))
+
     $cond = "Good"
-    if ($freePct -lt 10) {
-        $cond = "Critical Low"
+    if ($isVirtualOrIso) {
+        $cond = "Mounted Image"
+    } elseif ($freePct -lt 10) {
+        $cond = "Low Space"
         $lowSpaceCount++
-        $HealthScore -= 15
-        $Warnings.Add("Drive $($ld.DeviceID) has critically low free space: $freePct% ($fre GB free).")
+        $Recommendations.Add("Storage Recommendation: Drive $($ld.DeviceID) has low free space ($freePct% remaining, $fre GB free). Run Disk Cleanup or delete temp files to ensure optimal OS performance.")
     } elseif ($freePct -lt 20) {
-        $cond = "Warning Low"
-        $HealthScore -= 5
-        $Warnings.Add("Drive $($ld.DeviceID) is running low: $freePct% remaining ($fre GB free).")
+        $cond = "Advisory"
+        $Recommendations.Add("Storage Recommendation: Drive $($ld.DeviceID) is running low on space: $freePct% remaining ($fre GB free).")
     }
 
     $Partitions.Add([PSCustomObject]@{
         DriveLetter = $ld.DeviceID
-        VolumeName  = if ($ld.VolumeName) { $ld.VolumeName } else { "Local Disk" }
+        VolumeName  = $volName
         FileSystem  = $ld.FileSystem
         TotalGB     = $tot
         UsedGB      = $usd
@@ -567,14 +571,16 @@ foreach ($ld in $logicalDrives) {
     })
 }
 
+# Only deduct a small advisory penalty (max 5 points) for partition space so hardware health stays Healthy
+if ($lowSpaceCount -gt 0) {
+    $HealthScore -= 5
+}
+
 $storageHealth = "PASS"
-$storageMsg = "All $($PhysicalDisks.Count) Disks Healthy"
+$storageMsg = "All $($PhysicalDisks.Count) Disks Healthy & Operational"
 if ($diskFailingCount -gt 0) {
     $storageHealth = "FAIL"
     $storageMsg = "$diskFailingCount Physical Disk(s) Failing!"
-} elseif ($lowSpaceCount -gt 0) {
-    $storageHealth = "WARN"
-    $storageMsg = "$lowSpaceCount Partition(s) Low Free Space"
 }
 
 $Checklist.Add([PSCustomObject]@{
@@ -982,21 +988,30 @@ foreach ($pd in $problemDevs) {
 # ---------------------------------------------------------
 # Health Score & Verdict Calculation
 # ---------------------------------------------------------
-if ($HealthScore -lt 0) { $HealthScore = 0 }
-if ($HealthScore -gt 100) { $HealthScore = 100 }
-
-$Verdict = "EXCELLENT - ALL HARDWARE HEALTHY"
+$Verdict = "HEALTHY - ALL HARDWARE OPERATIONAL"
 $VerdictBadgeClass = "badge-healthy"
 $VerdictColor = "#10b981"
 
-if ($FailingHardwares.Count -gt 0 -or $HealthScore -lt 65) {
+if ($FailingHardwares.Count -gt 0) {
+    $Verdict = "CRITICAL HARDWARE FAULT DETECTED"
+    $VerdictBadgeClass = "badge-critical"
+    $VerdictColor = "#ef4444"
+} elseif ($HealthScore -lt 65) {
     $Verdict = "HARDWARE ATTENTION REQUIRED"
     $VerdictBadgeClass = "badge-critical"
     $VerdictColor = "#ef4444"
-} elseif ($Warnings.Count -gt 0 -or $HealthScore -lt 85) {
-    $Verdict = "MINOR WARNINGS / UPGRADES RECOMMENDED"
+} elseif ($Warnings.Count -gt 0) {
+    $Verdict = "HEALTHY - MAINTENANCE RECOMMENDED"
     $VerdictBadgeClass = "badge-warning"
     $VerdictColor = "#f59e0b"
+} elseif ($Recommendations.Count -gt 0) {
+    $Verdict = "HEALTHY - ALL HARDWARE OPERATIONAL"
+    $VerdictBadgeClass = "badge-healthy"
+    $VerdictColor = "#10b981"
+} else {
+    $Verdict = "EXCELLENT - 100% HEALTHY"
+    $VerdictBadgeClass = "badge-healthy"
+    $VerdictColor = "#10b981"
 }
 
 # ---------------------------------------------------------
@@ -1191,14 +1206,18 @@ if ($FailingHardwares.Count -gt 0) {
     $lines.Add('    </div>')
 } else {
     $lines.Add('    <div class="alert-box alert-healthy">')
-    $lines.Add('        <strong>&#9989; 100% Operational:</strong> No hardware failures, missing drivers, or defective components detected. All subsystems are functioning properly.')
+    $lines.Add('        <strong>&#9989; 100% Hardware Operational:</strong> No physical hardware defects or component failures detected. All subsystems are functioning properly.')
     $lines.Add('    </div>')
 }
 
-# Warnings Banner if any
-if ($Warnings.Count -gt 0) {
-    $lines.Add('    <div class="alert-box alert-warnings">')
-    $lines.Add("        <strong>&#9889; Performance & Capacity Warnings ($($Warnings.Count)):</strong><ul>")
+# Recommendations & Maintenance Banner (Helpful guidance, not alarming failure)
+if ($Recommendations.Count -gt 0 -or $Warnings.Count -gt 0) {
+    $lines.Add('    <div class="alert-box" style="background: rgba(56, 189, 248, 0.08); border-left: 5px solid var(--accent); color: var(--text);">')
+    $lines.Add("        <strong style=""color: var(--accent); font-size: 0.95rem;"">&#128161; Maintenance &amp; Storage Recommendations ($($Recommendations.Count + $Warnings.Count)):</strong>")
+    $lines.Add('        <ul style="margin-left: 24px; margin-top: 6px; font-size: 0.88rem;">')
+    foreach ($rec in $Recommendations) {
+        $lines.Add("            <li>$rec</li>")
+    }
     foreach ($wrn in $Warnings) {
         $lines.Add("            <li>$wrn</li>")
     }
@@ -1548,6 +1567,7 @@ $ReportJsonObj = [PSCustomObject]@{
     verdict              = $Verdict
     failingHardwares     = $FailingHardwares
     warnings             = $Warnings
+    recommendations      = $Recommendations
     checklist            = $Checklist
     scannedAt            = $ReportDateFormatted
     reportFileName       = $ReportFileName
