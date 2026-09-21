@@ -466,6 +466,70 @@ foreach ($pd in $PhysicalDisks) {
             }
         }
     } catch { }
+
+    # Native Windows Kernel ATA SMART Attributes (MSStorageDriver_ATAPISmartData) for SATA SSDs/HDDs
+    try {
+        if ($pd.HealthPercentage -eq $null -or $pd.DataWrittenTB -eq $null) {
+            $wmiSmartList = Get-CimInstance -Namespace 'root/wmi' -ClassName MSStorageDriver_ATAPISmartData -ErrorAction SilentlyContinue
+            if ($wmiSmartList) {
+                foreach ($wmiSmart in $wmiSmartList) {
+                    $raw = $wmiSmart.VendorSpecific
+                    if ($raw -and $raw.Length -ge 362) {
+                        $inst = "$($wmiSmart.InstanceName)"
+                        $cleanPd = ($pd.FriendlyName -replace '[^a-zA-Z0-9]', '').ToLower()
+                        $cleanInst = ($inst -replace '[^a-zA-Z0-9]', '').ToLower()
+                        $isMatch = $cleanInst.Contains($cleanPd) -or ($pd.BusType -eq 'SATA' -and $cleanPd.Length -ge 4 -and $cleanInst.Contains($cleanPd.Substring(0, [math]::Min(5, $cleanPd.Length))))
+
+                        if ($isMatch -or ($wmiSmartList.Count -eq 1 -and $pd.BusType -eq 'SATA')) {
+                            for ($i = 2; $i -lt 362; $i += 12) {
+                                $attrId = [int]$raw[$i]
+                                if ($attrId -eq 0) { continue }
+                                $attrVal = [int]$raw[$i + 3]
+                                $rawVal = [int64]$raw[$i + 5] + ([int64]$raw[$i + 6] -shl 8) + ([int64]$raw[$i + 7] -shl 16) + ([int64]$raw[$i + 8] -shl 24)
+
+                                # Attr 169 (0xA9) - Remaining Life % (ADATA / Realtek / SMI)
+                                # Attr 231 (0xE7) - SSD Life Left / Endurance % (Kingston / Crucial / Intel / SanDisk)
+                                if (($attrId -eq 169 -or $attrId -eq 231) -and $pd.HealthPercentage -eq $null) {
+                                    if ($attrVal -ge 1 -and $attrVal -le 100) {
+                                        $pd.HealthPercentage = $attrVal
+                                        $pd.HealthPercentageType = "vendor_smart"
+                                        $pd.HealthPercentageAttr = "Vendor SMART (Attr $attrId)"
+                                    }
+                                } elseif ($attrId -eq 232 -and $pd.AvailableSpare -eq $null) {
+                                    if ($attrVal -ge 1 -and $attrVal -le 100) {
+                                        $pd.AvailableSpare = $attrVal
+                                    }
+                                } elseif ($attrId -eq 194 -and $pd.Temperature -eq $null) {
+                                    if ($rawVal -gt 0 -and $rawVal -lt 120) {
+                                        $pd.Temperature = [int]$rawVal
+                                    }
+                                } elseif ($attrId -eq 9 -and $pd.PowerOnHours -eq $null) {
+                                    if ($rawVal -gt 0) {
+                                        $pd.PowerOnHours = [int]$rawVal
+                                    }
+                                } elseif ($attrId -eq 12 -and $pd.PowerCycles -eq $null) {
+                                    if ($rawVal -gt 0) {
+                                        $pd.PowerCycles = [int]$rawVal
+                                    }
+                                } elseif ($attrId -eq 241 -and $pd.DataWrittenTB -eq $null) {
+                                    if ($rawVal -gt 0) {
+                                        # Realtek/SMI: 32MB units (89772 * 32 / 1048576 = 2.7 TB)
+                                        $tbw = [math]::Round(($rawVal * 32.0 / 1048576.0), 1)
+                                        if ($tbw -gt 0) { $pd.DataWrittenTB = $tbw }
+                                    }
+                                }
+                            }
+                            if ($pd.SmartStatus -eq 'UNKNOWN' -or $pd.SmartStatus -eq 'N/A') {
+                                $pd.SmartStatus = 'PASSED'
+                                if ($pd.SmartCondition -eq 'UNKNOWN') { $pd.SmartCondition = 'HEALTHY' }
+                            }
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    } catch { }
 }
 
 # Logical Partitions
