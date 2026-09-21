@@ -7,7 +7,7 @@ title Laptop Hardware Diagnostic and Cloud Auto-Sync
 net session >nul 2>&1
 if %errorLevel% neq 0 (
     echo.
-    echo [*] Requesting Administrator privileges for deep hardware & battery diagnostics...
+    echo [*] Requesting Administrator privileges for deep hardware and battery diagnostics...
     powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs" >nul 2>&1
     if %errorLevel% equ 0 exit /b
     echo [*] Continuing in standard user mode...
@@ -37,18 +37,14 @@ if not "%~2"=="" set user_name=%~2
 if not "%~3"=="" set user_phone=%~3
 if not "%~4"=="" set srv=%~4
 
-if /i "%~1"=="-update" goto update_engine
-if /i "%~1"=="/update" goto update_engine
-
 if "%~1"=="" (
     echo [*] Target Company : %comp%
     echo [*] Target User    : %user_name%
     echo [*] Target Server  : %srv%
     echo.
-    echo [*] Auto-Scan starting in 3 seconds... (Press C to customize, U to update from GitHub, or any key to start)
-    choice /c CUY /n /t 3 /d Y >nul 2>&1
-    if errorlevel 3 goto start_scan
-    if errorlevel 2 goto update_engine
+    echo [*] Auto-Scan starting in 3 seconds... (Press C to customize info, or any key to start now)
+    choice /c CY /n /t 3 /d Y >nul 2>&1
+    if errorlevel 2 goto start_scan
     if errorlevel 1 goto prompt_inputs
 )
 goto start_scan
@@ -80,20 +76,13 @@ echo  Target Company   : %comp%
 echo  User Name        : %user_name%
 if not "%user_phone%"=="" echo  Customer Phone  : %user_phone%
 echo  Dashboard Server : %srv%
-echo  Auto-Upload      : ENABLED (Immediate Cloud & Drive Sync)
+echo  Auto-Upload      : ENABLED (Immediate Cloud and Drive Sync)
 echo ================================================================
 echo.
 
-:: Ensure diagnostic engine and SMART provider exist
-if not exist "%~dp0Generate-HealthReport.ps1" (
-    echo [*] Downloading diagnostic engine from GitHub...
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; try { (New-Object System.Net.WebClient).DownloadFile('https://raw.githubusercontent.com/geminipro09999-jpg/healthchecklabtop/main/Generate-HealthReport.ps1', '%~dp0Generate-HealthReport.ps1'); Write-Host '[+] Diagnostic engine downloaded successfully.' -ForegroundColor Green } catch { Write-Host '[-] Download failed: ' $_.Exception.Message -ForegroundColor Red }"
-)
-
-if not exist "%~dp0disk_health_provider.py" (
-    echo [*] Downloading SMART health provider from GitHub...
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; try { (New-Object System.Net.WebClient).DownloadFile('https://raw.githubusercontent.com/geminipro09999-jpg/healthchecklabtop/main/disk_health_provider.py', '%~dp0disk_health_provider.py'); Write-Host '[+] SMART health provider downloaded successfully.' -ForegroundColor Green } catch { Write-Host '[-] Download failed: ' $_.Exception.Message -ForegroundColor Red }"
-)
+:: Always auto-sync latest diagnostic engine & SMART provider from GitHub
+echo [*] Checking and synchronizing latest diagnostic engine from GitHub...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; try { (New-Object System.Net.WebClient).DownloadFile('https://raw.githubusercontent.com/geminipro09999-jpg/healthchecklabtop/main/Generate-HealthReport.ps1', '%~dp0Generate-HealthReport.ps1'); (New-Object System.Net.WebClient).DownloadFile('https://raw.githubusercontent.com/geminipro09999-jpg/healthchecklabtop/main/disk_health_provider.py', '%~dp0disk_health_provider.py'); Write-Host '[+] Diagnostic engine & SMART provider up-to-date.' -ForegroundColor Green } catch { Write-Host '[-] Offline notice: Continuing with existing local diagnostic files.' -ForegroundColor DarkYellow }"
 
 if not exist "%~dp0Generate-HealthReport.ps1" (
     echo.
@@ -104,6 +93,7 @@ if not exist "%~dp0Generate-HealthReport.ps1" (
     exit /b 1
 )
 
+echo.
 echo [*] Scanning hardware specs and running diagnostics...
 echo.
 
@@ -112,25 +102,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Generate-HealthRep
 echo.
 echo ================================================================
 echo  [D] Open Multi-Laptop Inventory Dashboard
-echo  [U] Update Diagnostic Engine from GitHub
 echo  [E] Exit
 echo ================================================================
-set /p choice="Choose an option (D/U/E) [Default: D]: "
+set /p choice="Choose an option (D/E) [Default: D]: "
 if /i "%choice%"=="E" goto end
-if /i "%choice%"=="U" goto update_engine
 
 start "" "%srv%/Dashboard.html"
-goto end
-
-:update_engine
-echo.
-echo ================================================================
-echo  [*] Updating diagnostic files from GitHub...
-echo ================================================================
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; try { (New-Object System.Net.WebClient).DownloadFile('https://raw.githubusercontent.com/geminipro09999-jpg/healthchecklabtop/main/Generate-HealthReport.ps1', '%~dp0Generate-HealthReport.ps1'); (New-Object System.Net.WebClient).DownloadFile('https://raw.githubusercontent.com/geminipro09999-jpg/healthchecklabtop/main/disk_health_provider.py', '%~dp0disk_health_provider.py'); Write-Host '[+] Updated Generate-HealthReport.ps1 and disk_health_provider.py successfully!' -ForegroundColor Green } catch { Write-Host '[-] Update failed: ' $_.Exception.Message -ForegroundColor Red }"
-echo.
-echo [*] Update completed. Starting scan...
-goto start_scan
 
 :end
 pause
