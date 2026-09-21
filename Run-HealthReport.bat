@@ -20,7 +20,7 @@ echo    Laptop Hardware Diagnostic and Cloud Auto-Sync
 echo ================================================================
 echo.
 
-set comp=UNICOMTIC
+set comp=Unicom TIC
 set user_name=%USERNAME%
 set user_phone=
 set srv=https://healthchecklabtop.vercel.app
@@ -37,37 +37,37 @@ if not "%~2"=="" set user_name=%~2
 if not "%~3"=="" set user_phone=%~3
 if not "%~4"=="" set srv=%~4
 
-if "%~1"=="" (
-    echo [*] Target Company : %comp%
-    echo [*] Target User    : %user_name%
-    echo [*] Target Server  : %srv%
-    echo.
-    echo [*] Auto-Scan starting in 3 seconds... (Press C to customize info, or any key to start now)
-    choice /c CY /n /t 3 /d Y >nul 2>&1
-    if errorlevel 2 goto start_scan
-    if errorlevel 1 goto prompt_inputs
-)
-goto start_scan
+if not "%~1"=="" goto start_scan
 
-:prompt_inputs
+:select_company
+echo ----------------------------------------------------------------
+echo  Select Company / Organization:
+echo   [1] Unicom TIC
+echo   [2] Unicomtic Incubator
+echo   [3] UnicomSD
+echo   [4] Custom / Other
+echo ----------------------------------------------------------------
+set comp_opt=1
+set /p comp_opt="Choose Company (1/2/3/4) [Press Enter for 1]: "
+set comp_opt=%comp_opt: =%
+if "%comp_opt%"=="2" set comp=Unicomtic Incubator& goto enter_user
+if "%comp_opt%"=="3" set comp=UnicomSD& goto enter_user
+if "%comp_opt%"=="4" goto custom_company
+set comp=Unicom TIC
+goto enter_user
+
+:custom_company
+set /p comp="Enter Custom Company Name: "
+if "%comp%"=="" set comp=Unicom TIC
+goto enter_user
+
+:enter_user
 echo.
-set /p comp="Enter Company Name [Press Enter for '%comp%']: "
-if "%comp%"=="" set comp=UNICOMTIC
-
 set /p user_name="Enter User Name [Press Enter for '%USERNAME%']: "
 if "%user_name%"=="" set user_name=%USERNAME%
 
-set /p user_phone="Enter Customer Phone [Optional]: "
-
-set /p srv="Enter Dashboard Server URL [Press Enter for '%srv%']: "
-if "%srv%"=="" (
-    powershell -NoProfile -Command "try { `$r = Invoke-WebRequest -Uri 'http://localhost:8080/api/server-info' -TimeoutSec 1 -UseBasicParsing; exit 0 } catch { exit 1 }" >nul 2>&1
-    if %errorLevel% equ 0 (
-        set srv=http://localhost:8080
-    ) else (
-        set srv=https://healthchecklabtop.vercel.app
-    )
-)
+set /p user_phone="Enter Customer Phone [Optional - Press Enter to Skip]: "
+goto start_scan
 
 :start_scan
 echo.
