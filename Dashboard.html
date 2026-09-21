@@ -1580,6 +1580,28 @@ function createLaptopCardHTML(l) {
         complaintText = l.complaints;
     }
 
+    // Extract SMART disk telemetry badges if available
+    let diskBadgesHtml = '';
+    const pDisks = (l.report_data && (l.report_data.physical_disks || l.report_data.physicalDisks)) || [];
+    if (Array.isArray(pDisks) && pDisks.length > 0) {
+        const badges = pDisks.map(d => {
+            if (d.RemainingEndurance !== null && d.RemainingEndurance !== undefined) {
+                const bCol = d.RemainingEndurance < 10 ? 'var(--red)' : (d.RemainingEndurance < 20 ? 'var(--amber)' : '#34d399');
+                const tempStr = d.Temperature ? ` • ${d.Temperature}°C` : '';
+                return `<span style="display: inline-flex; align-items: center; gap: 3px; font-size: 0.7rem; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: ${bCol}; font-weight: 600;" title="${escapeHtml(d.FriendlyName || '')}: ${d.RemainingEndurance}% estimated remaining endurance${tempStr}">💾 ${d.RemainingEndurance}% Life${tempStr}</span>`;
+            } else if (d.SmartStatus && d.SmartStatus === 'PASSED') {
+                const tempStr = d.Temperature ? ` • ${d.Temperature}°C` : '';
+                return `<span style="display: inline-flex; align-items: center; gap: 3px; font-size: 0.7rem; padding: 1px 5px; border-radius: 4px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); color: var(--green); font-weight: 600;" title="${escapeHtml(d.FriendlyName || '')}: SMART Passed${tempStr}">💾 PASSED${tempStr}</span>`;
+            } else if (d.SmartStatus && d.SmartStatus === 'FAILED') {
+                return `<span style="display: inline-flex; align-items: center; gap: 3px; font-size: 0.7rem; padding: 1px 5px; border-radius: 4px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: var(--red); font-weight: 700;" title="${escapeHtml(d.FriendlyName || '')}: SMART FAILED!">💾 FAILING</span>`;
+            }
+            return '';
+        }).filter(Boolean);
+        if (badges.length > 0) {
+            diskBadgesHtml = `<div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px;">${badges.join('')}</div>`;
+        }
+    }
+
     return `
         <div class="laptop-card" id="card-${l.id}">
             <div class="card-company-bar">
@@ -1611,7 +1633,7 @@ function createLaptopCardHTML(l) {
                 <div class="specs-grid">
                     <div class="spec-item"><span class="spec-label">CPU</span><span class="spec-value" title="${l.cpu || ''}">${l.cpu || 'N/A'}</span></div>
                     <div class="spec-item"><span class="spec-label">RAM</span><span class="spec-value" title="${l.ram || ''}">${l.ram || 'N/A'}</span></div>
-                    <div class="spec-item"><span class="spec-label">Storage</span><span class="spec-value" title="${l.storage || ''}">${l.storage || 'N/A'}</span></div>
+                    <div class="spec-item"><span class="spec-label">Storage</span><span class="spec-value" title="${l.storage || ''}">${l.storage || 'N/A'}${diskBadgesHtml}</span></div>
                     <div class="spec-item"><span class="spec-label">GPU</span><span class="spec-value" title="${l.gpu || ''}">${l.gpu || 'N/A'}</span></div>
                     ${(l.report_data && l.report_data.hasBattery === false) || (l.model && l.model.toLowerCase().includes('desktop')) ? `
                         <div class="spec-item" style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2);">
@@ -2406,13 +2428,23 @@ function parseJsonReport(text) {
     const batStatus = data.batteryStatus || data.BatteryStatus || data.battery_status || '';
     const cycleCount = data.batteryCycleCount || data.BatteryCycleCount || data.battery_cycle_count || 'N/A';
 
+    let storageStr = data.disks || `${data.TotalStorage_GB || 0} GB`;
+    const pDisks = data.physicalDisks || data.physical_disks || [];
+    if (Array.isArray(pDisks) && pDisks.length > 0) {
+        storageStr = pDisks.map(d => {
+            let life = (d.RemainingEndurance !== null && d.RemainingEndurance !== undefined) ? ` (${d.RemainingEndurance}% Life)` : (d.SmartStatus && d.SmartStatus !== 'UNKNOWN' ? ` (${d.SmartStatus})` : '');
+            return `${d.FriendlyName} (${d.SizeGB} GB${life})`;
+        }).join(', ');
+    }
+
     return {
         device_name: data.deviceName || data.DeviceName || 'PC',
         model: `${mfg} ${mdl}`.trim() || 'Standard PC',
         serial_number: data.serialNumber || data.SerialNumber || 'N/A',
         cpu: data.cpu || data.CPU || '',
         ram: `${data.ramTotalGB || data.TotalRAM_GB || 0} GB`,
-        storage: data.disks || `${data.TotalStorage_GB || 0} GB`,
+        storage: storageStr,
+        physical_disks: pDisks,
         gpu: Array.isArray(data.gpu) ? data.gpu.join(', ') : (data.gpu || ''),
         battery_health: batHealth,
         battery_charge: batCharge,

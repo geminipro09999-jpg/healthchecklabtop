@@ -251,16 +251,39 @@ try {
         }
 
         $PhysicalDisks.Add([PSCustomObject]@{
-            FriendlyName = $pd.FriendlyName
-            MediaType    = $mType
-            BusType      = $bus
-            SizeGB       = $sizeGB
-            HealthStatus = $health
-            Operational  = $op
+            DeviceId               = "$($pd.DeviceId)"
+            FriendlyName           = $pd.FriendlyName
+            MediaType              = $mType
+            BusType                = $bus
+            SizeGB                 = $sizeGB
+            HealthStatus           = $health
+            Operational            = $op
+            SmartStatus            = "N/A"
+            SmartCondition         = "UNKNOWN"
+            HealthPercentage       = $null
+            HealthPercentageType   = "unavailable"
+            HealthPercentageAttr   = $null
+            PercentageUsed         = $null
+            RemainingEndurance     = $null
+            AvailableSpare         = $null
+            AvailableSpareThreshold= $null
+            Temperature            = $null
+            WarningTempThreshold   = $null
+            CriticalTempThreshold  = $null
+            PowerOnHours           = $null
+            PowerCycles            = $null
+            UnsafeShutdowns        = $null
+            DataWrittenTB          = $null
+            DataReadTB             = $null
+            MediaErrors            = $null
+            ErrorLogEntries        = $null
+            SmartWarnings          = @()
+            SmartDevice            = $null
         })
     }
 } catch {
     $dDrives = Get-CimInstance Win32_DiskDrive
+    $driveIdx = 0
     foreach ($dd in $dDrives) {
         $sizeGB = [math]::Round(($dd.Size / 1GB), 1)
         $stat = $dd.Status
@@ -277,13 +300,131 @@ try {
             })
         }
         $PhysicalDisks.Add([PSCustomObject]@{
-            FriendlyName = $dd.Model
-            MediaType    = "Disk Drive"
-            BusType      = $dd.InterfaceType
-            SizeGB       = $sizeGB
-            HealthStatus = $stat
-            Operational  = $stat
+            DeviceId               = "$driveIdx"
+            FriendlyName           = $dd.Model
+            MediaType              = "Disk Drive"
+            BusType                = $dd.InterfaceType
+            SizeGB                 = $sizeGB
+            HealthStatus           = $stat
+            Operational            = $stat
+            SmartStatus            = "N/A"
+            SmartCondition         = "UNKNOWN"
+            HealthPercentage       = $null
+            HealthPercentageType   = "unavailable"
+            HealthPercentageAttr   = $null
+            PercentageUsed         = $null
+            RemainingEndurance     = $null
+            AvailableSpare         = $null
+            AvailableSpareThreshold= $null
+            Temperature            = $null
+            WarningTempThreshold   = $null
+            CriticalTempThreshold  = $null
+            PowerOnHours           = $null
+            PowerCycles            = $null
+            UnsafeShutdowns        = $null
+            DataWrittenTB          = $null
+            DataReadTB             = $null
+            MediaErrors            = $null
+            ErrorLogEntries        = $null
+            SmartWarnings          = @()
+            SmartDevice            = $null
         })
+        $driveIdx++
+    }
+}
+
+# ---------------------------------------------------------
+# Accurate SMART Telemetry via smartmontools (smartctl)
+# ---------------------------------------------------------
+$SmartDisks = @()
+try {
+    $pythonCmd = if (Get-Command "python" -ErrorAction SilentlyContinue) { "python" } elseif (Get-Command "py" -ErrorAction SilentlyContinue) { "py" } else { $null }
+    $diskScript = Join-Path $PSScriptRoot "disk_health_provider.py"
+    if ($pythonCmd -and (Test-Path $diskScript)) {
+        Write-Host "   -> Querying smartctl SMART health provider..." -ForegroundColor Gray
+        $smartOut = & $pythonCmd "$diskScript" --json 2>$null
+        if ($smartOut) {
+            $rawJson = ($smartOut -join "`n").Trim()
+            if ($rawJson.StartsWith("[") -and $rawJson.EndsWith("]")) {
+                $SmartDisks = $rawJson | ConvertFrom-Json
+                Write-Host "   -> Found $($SmartDisks.Count) SMART monitored disk(s)." -ForegroundColor Green
+            }
+        }
+    }
+} catch {
+    Write-Host "   [-] Notice: smartctl SMART query notice: $($_.Exception.Message)" -ForegroundColor DarkGray
+}
+
+# Correlate Physical Disks with SMART Telemetry
+foreach ($pd in $PhysicalDisks) {
+    $matchedSmart = $null
+    if ($SmartDisks -and $SmartDisks.Count -gt 0) {
+        # 1. Match by model name
+        $cleanPdName = ($pd.FriendlyName -replace '[^a-zA-Z0-9]', '').ToLower()
+        foreach ($sd in $SmartDisks) {
+            if ($sd.model) {
+                $cleanSdModel = ($sd.model -replace '[^a-zA-Z0-9]', '').ToLower()
+                if ($cleanPdName.Contains($cleanSdModel) -or $cleanSdModel.Contains($cleanPdName)) {
+                    $matchedSmart = $sd
+                    break
+                }
+            }
+        }
+        # 2. Fallback: match by device letter / index (0 -> /dev/sda, 1 -> /dev/sdb)
+        if (-not $matchedSmart -and $pd.DeviceId -ne $null -and "$($pd.DeviceId)" -match '^\d+$') {
+            $charIndex = [int]$pd.DeviceId
+            if ($charIndex -ge 0 -and $charIndex -lt 26) {
+                $targetDev = "/dev/sd" + [char]([int][char]'a' + $charIndex)
+                $matchedSmart = $SmartDisks | Where-Object { $_.device -eq $targetDev } | Select-Object -First 1
+            }
+        }
+    }
+
+    if ($matchedSmart) {
+        $pd.SmartStatus             = if ($matchedSmart.smartStatus) { $matchedSmart.smartStatus } else { "UNKNOWN" }
+        $pd.SmartCondition          = if ($matchedSmart.status) { $matchedSmart.status } else { "UNKNOWN" }
+        $pd.HealthPercentage        = $matchedSmart.healthPercentage
+        $pd.HealthPercentageType    = $matchedSmart.healthPercentageType
+        $pd.HealthPercentageAttr    = $matchedSmart.healthPercentageAttribute
+        $pd.PercentageUsed          = $matchedSmart.percentageUsed
+        $pd.RemainingEndurance      = $matchedSmart.remainingEndurance
+        $pd.AvailableSpare          = $matchedSmart.availableSpare
+        $pd.AvailableSpareThreshold = $matchedSmart.availableSpareThreshold
+        $pd.Temperature             = $matchedSmart.temperature
+        $pd.WarningTempThreshold    = $matchedSmart.warningTempThreshold
+        $pd.CriticalTempThreshold   = $matchedSmart.criticalTempThreshold
+        $pd.PowerOnHours            = $matchedSmart.powerOnHours
+        $pd.PowerCycles             = $matchedSmart.powerCycles
+        $pd.UnsafeShutdowns         = $matchedSmart.unsafeShutdowns
+        $pd.DataWrittenTB           = $matchedSmart.dataWrittenTB
+        $pd.DataReadTB              = $matchedSmart.dataReadTB
+        $pd.MediaErrors             = $matchedSmart.mediaErrors
+        $pd.ErrorLogEntries         = $matchedSmart.errorLogEntries
+        $pd.SmartWarnings           = if ($matchedSmart.warnings) { $matchedSmart.warnings } else { @() }
+        $pd.SmartDevice             = $matchedSmart.device
+
+        # Evaluate SMART failures & critical alerts
+        if ($pd.SmartStatus -eq 'FAILED' -or $pd.SmartCondition -eq 'CRITICAL') {
+            $diskFailingCount++
+            $HealthScore -= 25
+            $FailingHardwares.Add([PSCustomObject]@{
+                Category    = "Storage Disk (SMART)"
+                DeviceName  = "$($pd.FriendlyName) ($($pd.MediaType), $($pd.SizeGB) GB)"
+                ErrorCode   = "SMART_FAIL"
+                Description = "SMART self-assessment critical: $(if ($pd.SmartWarnings.Count -gt 0) { $pd.SmartWarnings -join '; ' } else { 'Self-assessment test result FAILED' })"
+                Severity    = "CRITICAL"
+            })
+        } elseif ($pd.SmartCondition -eq 'WARNING') {
+            $HealthScore -= 5
+            foreach ($sw in $pd.SmartWarnings) {
+                $Warnings.Add("$($pd.FriendlyName): $sw")
+            }
+        }
+
+        if ($pd.Temperature -and $pd.Temperature -ge 70) {
+            $HealthScore -= 5
+            $Warnings.Add("$($pd.FriendlyName): High storage operating temperature ($($pd.Temperature)°C). Check cooling.")
+        }
     }
 }
 
@@ -1032,11 +1173,92 @@ $lines.Add('        <div class="section-header"><h2>&#128190; Storage Disks & Pa
 $lines.Add('        <div class="section-body">')
 $lines.Add('            <h3 style="font-size: 0.95rem; margin-bottom: 10px; color: var(--text-muted);">Physical Drives (NVMe / SSD / HDD)</h3>')
 $lines.Add('            <table>')
-$lines.Add('                <thead><tr><th>Drive Model</th><th>Type</th><th>Interface (Bus)</th><th>Capacity</th><th>Health Status</th><th>Operational Status</th></tr></thead>')
-$lines.Add('                <tbody>')
+$lines.Add('                <thead>
+                    <tr>
+                        <th>Drive Model</th>
+                        <th>Type / Bus</th>
+                        <th>Capacity</th>
+                        <th>SMART Test</th>
+                        <th>Health / Endurance</th>
+                        <th>Temp</th>
+                        <th>TB Written</th>
+                        <th>Power Hours</th>
+                        <th>Condition</th>
+                    </tr>
+                </thead>
+                <tbody>')
 foreach ($pd in $PhysicalDisks) {
-    $statCol = if ($pd.HealthStatus -eq 'Healthy' -or $pd.HealthStatus -eq 'OK') { 'var(--green)' } else { 'var(--red)' }
-    $lines.Add("                    <tr><td><strong>$($pd.FriendlyName)</strong></td><td>$($pd.MediaType)</td><td>$($pd.BusType)</td><td>$($pd.SizeGB) GB</td><td><span style=""color: $statCol; font-weight: 600;"">$($pd.HealthStatus)</span></td><td>$($pd.Operational)</td></tr>")
+    $smartCol = if ($pd.SmartStatus -eq 'PASSED') { 'var(--green)' } elseif ($pd.SmartStatus -eq 'FAILED') { 'var(--red)' } else { 'var(--text-muted)' }
+    $condBadge = if ($pd.SmartCondition -eq 'CRITICAL' -or ($pd.HealthStatus -ne 'Healthy' -and $pd.HealthStatus -ne 'OK')) {
+        '<span class="status-badge status-fail" style="font-size: 0.72rem;">CRITICAL</span>'
+    } elseif ($pd.SmartCondition -eq 'WARNING') {
+        '<span class="status-badge status-warn" style="font-size: 0.72rem;">WARNING</span>'
+    } elseif ($pd.SmartCondition -eq 'HEALTHY' -or $pd.HealthStatus -eq 'Healthy' -or $pd.HealthStatus -eq 'OK') {
+        '<span class="status-badge status-pass" style="font-size: 0.72rem;">HEALTHY</span>'
+    } else {
+        '<span class="status-badge" style="background: rgba(255,255,255,0.1); color: var(--text-muted); font-size: 0.72rem;">UNKNOWN</span>'
+    }
+
+    # Endurance / Health percentage
+    $enduranceHtml = if ($pd.RemainingEndurance -ne $null) {
+        $wearColor = if ($pd.RemainingEndurance -lt 10) { 'var(--red)' } elseif ($pd.RemainingEndurance -lt 20) { 'var(--amber)' } else { 'var(--green)' }
+        "<div style=""font-weight: 700; color: $wearColor;"">$($pd.RemainingEndurance)% est. remaining</div><small style=""color: var(--text-muted); font-size: 0.72rem;"">(Used: $($pd.PercentageUsed)%)</small>"
+    } elseif ($pd.HealthPercentage -ne $null) {
+        "<div style=""font-weight: 700; color: var(--green);"">$($pd.HealthPercentage)% remaining</div><small style=""color: var(--text-muted); font-size: 0.72rem;"">(Vendor SMART)</small>"
+    } elseif ($pd.MediaType -match 'HDD' -or $pd.FriendlyName -match 'HDD') {
+        "<span style=""color: var(--text-muted); font-size: 0.76rem;"">N/A (HDD - Sector Healthy)</span>"
+    } else {
+        "<span style=""color: var(--text-muted); font-size: 0.76rem;"">N/A (Unexposed)</span>"
+    }
+
+    $tempHtml = if ($pd.Temperature -ne $null) {
+        $tColor = if ($pd.Temperature -ge 70) { 'var(--red)' } elseif ($pd.Temperature -ge 55) { 'var(--amber)' } else { 'var(--text)' }
+        "<span style=""color: $tColor; font-weight: 600;"">$($pd.Temperature)&deg;C</span>"
+    } else {
+        '<span style="color: var(--text-muted);">-</span>'
+    }
+
+    $tbHtml = if ($pd.DataWrittenTB -ne $null) {
+        "<span>$($pd.DataWrittenTB) TB</span>"
+    } else {
+        '<span style="color: var(--text-muted);">-</span>'
+    }
+
+    $hoursHtml = if ($pd.PowerOnHours -ne $null) {
+        "<span>$([string]::Format('{0:N0}', [int]$pd.PowerOnHours)) hrs</span>"
+    } else {
+        '<span style="color: var(--text-muted);">-</span>'
+    }
+
+    $smartDevLabel = if ($pd.SmartDevice) { "<div style=""font-size: 0.72rem; color: var(--text-muted); font-family: monospace;"">$($pd.SmartDevice)</div>" } else { "" }
+
+    $lines.Add("                    <tr>")
+    $lines.Add("                        <td><strong>$($pd.FriendlyName)</strong>$smartDevLabel</td>")
+    $lines.Add("                        <td>$($pd.MediaType) / $($pd.BusType)</td>")
+    $lines.Add("                        <td>$($pd.SizeGB) GB</td>")
+    $lines.Add("                        <td><span style=""color: $smartCol; font-weight: 700;"">$(if ($pd.SmartStatus -eq 'PASSED') { '&#10004; PASSED' } elseif ($pd.SmartStatus -eq 'FAILED') { '&#10008; FAILED' } else { $pd.HealthStatus })</span></td>")
+    $lines.Add("                        <td>$enduranceHtml</td>")
+    $lines.Add("                        <td>$tempHtml</td>")
+    $lines.Add("                        <td>$tbHtml</td>")
+    $lines.Add("                        <td>$hoursHtml</td>")
+    $lines.Add("                        <td>$condBadge</td>")
+    $lines.Add("                    </tr>")
+
+    # Telemetry detail sub-row
+    $telemetryParts = @()
+    if ($pd.AvailableSpare -ne $null) { $telemetryParts += "Available Spare: $($pd.AvailableSpare)%" }
+    if ($pd.PowerCycles -ne $null) { $telemetryParts += "Power Cycles: $($pd.PowerCycles)" }
+    if ($pd.UnsafeShutdowns -ne $null) { $telemetryParts += "Unsafe Shutdowns: $($pd.UnsafeShutdowns)" }
+    if ($pd.MediaErrors -ne $null) { $telemetryParts += "Media Errors: $($pd.MediaErrors)" }
+    if ($pd.SmartWarnings -and $pd.SmartWarnings.Count -gt 0) { $telemetryParts += ("<span style='color: var(--amber);'>Warnings: " + ($pd.SmartWarnings -join ", ") + "</span>") }
+
+    if ($telemetryParts.Count -gt 0) {
+        $lines.Add("                    <tr style=""background: rgba(255,255,255,0.015);"">")
+        $lines.Add("                        <td colspan=""9"" style=""padding: 3px 12px 7px 12px; font-size: 0.73rem; border-top: none; color: var(--text-muted);"">")
+        $lines.Add("                            <span style=""color: var(--accent); font-weight: 600;"">Telemetry:</span> $($telemetryParts -join ' &bull; ')")
+        $lines.Add("                        </td>")
+        $lines.Add("                    </tr>")
+    }
 }
 $lines.Add('                </tbody>')
 $lines.Add('            </table>')
@@ -1185,7 +1407,11 @@ $ReportJsonObj = [PSCustomObject]@{
     ramSlots             = $SlotSummary
     ramSpeed             = $RamSpeedSummary
     gpu                  = (($GpuList | Select-Object -ExpandProperty Name) -join " + ")
-    disks                = ($PhysicalDisks | ForEach-Object { "$($_.FriendlyName) ($($_.SizeGB) GB $($_.MediaType))" }) -join ", "
+    disks                = ($PhysicalDisks | ForEach-Object {
+        $lifeInfo = if ($_.RemainingEndurance -ne $null) { " ($($_.RemainingEndurance)% Life)" } elseif ($_.SmartStatus -and $_.SmartStatus -ne 'UNKNOWN') { " ($($_.SmartStatus))" } else { "" }
+        "$($_.FriendlyName) ($($_.SizeGB) GB $($_.MediaType)$lifeInfo)"
+    }) -join ", "
+    physicalDisks        = $PhysicalDisks
     batteryStatus        = $BatteryStatus
     batteryHealthPercent = $BatteryHealthPercent
     battery_health       = [int][math]::Round($BatteryWearNum)
@@ -1271,7 +1497,11 @@ if ($AutoUpload -and $ServerUrl) {
                 serial_number           = $SerialNumber
                 cpu                     = "$CpuName"
                 ram                     = "$TotalRamGB GB"
-                storage                 = ($PhysicalDisks | ForEach-Object { "$($_.FriendlyName) ($($_.SizeGB) GB)" }) -join ", "
+                storage                 = ($PhysicalDisks | ForEach-Object {
+                    $lifeInfo = if ($_.RemainingEndurance -ne $null) { " ($($_.RemainingEndurance)% Life)" } elseif ($_.SmartStatus -and $_.SmartStatus -ne 'UNKNOWN') { " ($($_.SmartStatus))" } else { "" }
+                    "$($_.FriendlyName) ($($_.SizeGB) GB$lifeInfo)"
+                }) -join ", "
+                physical_disks          = $PhysicalDisks
                 gpu                     = (($GpuList | Select-Object -ExpandProperty Name) -join " + ")
                 battery_health          = [int][math]::Round($BatteryWearNum)
                 battery_health_text     = $BatteryHealthPercent

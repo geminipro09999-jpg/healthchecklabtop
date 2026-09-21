@@ -11,3 +11,9 @@ laptops.db
 
 # Local temporary uploads
 laptop_images/
+
+# Generated diagnostic reports
+HealthReport_*.html
+HealthReport_*.json
+BatteryReport_*.html
+battery-report.html
