@@ -240,12 +240,8 @@
         /* Laptop Cards Grid */
         .laptops-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 18px;
-        }
-
-        @media (max-width: 500px) {
-            .laptops-grid { grid-template-columns: 1fr; }
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
         }
 
         .laptop-card {
@@ -462,7 +458,6 @@
             color: var(--text); padding: 9px 12px; border-radius: 8px; font-size: 0.86rem; outline: none;
         }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        @media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
 
         /* Quick Complaint Pills */
         .complaint-pills {
@@ -555,6 +550,292 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+
+        /* Modal Footer Actions */
+        .modal-footer {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 14px;
+        }
+
+        .parsed-preview-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 14px;
+            font-size: 0.78rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            padding-top: 8px;
+            margin-top: 6px;
+        }
+
+        .modal-header-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* =========================================================
+           RESPONSIVE MOBILE, TABLET & DESKTOP SYSTEM
+           ========================================================= */
+        @media (max-width: 900px) {
+            .laptops-grid {
+                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+                gap: 14px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px 10px 95px 10px;
+            }
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+                padding-bottom: 12px;
+                margin-bottom: 14px;
+            }
+            .header-title h1 {
+                font-size: 1.25rem;
+                flex-wrap: wrap;
+            }
+            .header-title p {
+                font-size: 0.78rem;
+            }
+            .header-actions {
+                width: 100%;
+                justify-content: flex-start;
+                gap: 6px;
+            }
+            .header-actions .btn, .header-actions .auth-badge {
+                font-size: 0.78rem;
+                padding: 7px 11px;
+            }
+            .info-strip {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+                padding: 10px 12px;
+                font-size: 0.78rem;
+                margin-bottom: 14px;
+            }
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+                margin-bottom: 14px;
+            }
+            .company-filter-box {
+                width: 100% !important;
+                min-width: 0 !important;
+            }
+            .company-filter-box select {
+                font-size: 0.85rem;
+                padding: 9px 10px;
+            }
+            .search-box {
+                width: 100% !important;
+                min-width: 0 !important;
+                flex: none;
+            }
+            .search-box input {
+                padding: 10px 14px 10px 36px;
+                font-size: 0.85rem;
+            }
+            .filters {
+                width: 100%;
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 6px;
+            }
+            .filter-btn {
+                text-align: center;
+                padding: 8px 6px;
+                font-size: 0.76rem;
+            }
+            .sort-select {
+                width: 100%;
+                padding: 9px 10px !important;
+                font-size: 0.82rem !important;
+            }
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .kpi-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+                margin-bottom: 14px;
+            }
+            .kpi-card {
+                padding: 10px 12px;
+                border-radius: 10px;
+            }
+            .kpi-card:last-child {
+                grid-column: span 2;
+                text-align: center;
+            }
+            .kpi-value {
+                font-size: 1.35rem;
+            }
+            .kpi-title {
+                font-size: 0.7rem;
+            }
+            .kpi-sub {
+                font-size: 0.68rem;
+            }
+            .laptops-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            .carousel-container {
+                height: 195px;
+            }
+            .card-body {
+                padding: 12px;
+            }
+            .card-device-name {
+                font-size: 1.05rem;
+            }
+            .card-actions {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 6px;
+            }
+            .card-actions .btn {
+                min-width: 0;
+                width: 100%;
+                padding: 8px 4px;
+                font-size: 0.78rem;
+            }
+            .modal-backdrop {
+                padding: 6px;
+                align-items: flex-end;
+            }
+            .modal-card {
+                max-width: 100%;
+                max-height: 94vh;
+                border-radius: 16px 16px 8px 8px;
+            }
+            .modal-header {
+                padding: 10px 14px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+                position: relative;
+            }
+            .modal-header .modal-close {
+                position: absolute;
+                top: 8px;
+                right: 12px;
+            }
+            .modal-header-actions {
+                width: 100%;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 6px;
+                padding-right: 32px;
+            }
+            .modal-header-actions .btn {
+                width: 100%;
+                font-size: 0.75rem;
+                padding: 6px 6px;
+                white-space: nowrap;
+            }
+            .modal-body {
+                padding: 12px;
+            }
+            .modal-footer {
+                flex-direction: column-reverse;
+                gap: 8px;
+            }
+            .modal-footer .btn {
+                width: 100%;
+                padding: 11px 16px;
+                font-size: 0.88rem;
+            }
+            .form-group input, .form-group select, .form-group textarea {
+                font-size: 16px !important; /* Prevents auto-zoom on iOS mobile browsers */
+                padding: 10px 11px;
+            }
+            .photo-slots-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+            }
+            .photo-slot {
+                height: 125px;
+                padding: 4px;
+            }
+            .photo-slot .slot-icon {
+                font-size: 1.3rem;
+                margin-bottom: 2px;
+            }
+            .photo-slot .slot-title {
+                font-size: 0.66rem;
+                line-height: 1.15;
+            }
+            .photo-slot .slot-desc {
+                display: none;
+            }
+            #liveCamVideo {
+                max-height: 220px !important;
+            }
+            #liveCameraSection {
+                padding: 8px;
+            }
+            .parsed-preview-grid {
+                grid-template-columns: 1fr !important;
+                gap: 5px;
+            }
+            .mobile-fab-bar {
+                padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)) 12px;
+            }
+        }
+
+        @media (max-width: 380px) {
+            body {
+                padding: 6px 6px 90px 6px;
+            }
+            .header-title h1 {
+                font-size: 1.1rem;
+            }
+            .filters {
+                grid-template-columns: 1fr;
+            }
+            .specs-grid {
+                grid-template-columns: 1fr;
+            }
+            .card-actions {
+                grid-template-columns: 1fr;
+            }
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+            .kpi-card:last-child {
+                grid-column: span 1;
+            }
+            .photo-slots-grid {
+                grid-template-columns: 1fr;
+            }
+            .photo-slot {
+                height: 85px;
+                flex-direction: row;
+                gap: 10px;
+                padding: 8px;
+            }
+            .photo-slot .slot-icon {
+                font-size: 1.6rem;
+            }
+            .photo-slot .slot-desc {
+                display: block;
+                font-size: 0.65rem;
+            }
         }
     </style>
 </head>
@@ -689,7 +970,7 @@
                 <div style="font-size: 0.75rem; color: var(--accent); margin-bottom: 12px;">
                     ℹ️ Initial default password: <code>admin123</code> (Change anytime)
                 </div>
-                <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                <div class="modal-footer">
                     <button type="button" class="btn" onclick="closeModal('loginModal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Login</button>
                 </div>
@@ -717,7 +998,7 @@
                     <label>New Password (Min 4 chars)</label>
                     <input type="password" id="newPassword" required placeholder="New password">
                 </div>
-                <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
+                <div class="modal-footer">
                     <button type="button" class="btn" onclick="closeModal('changePwdModal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">Update Password</button>
                 </div>
@@ -744,7 +1025,7 @@
                     <label>Company / Client Name <span style="color:var(--red);">*</span> (நிறுவன பெயர்)</label>
                     <input type="text" id="newCompanyNameInput" required placeholder="e.g. UNICOMTIC" autocomplete="organization">
                 </div>
-                <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
+                <div class="modal-footer">
                     <button type="button" class="btn" onclick="closeModal('companyModal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">➕ Save Company</button>
                 </div>
@@ -808,7 +1089,7 @@
                     </div>
                 </div>
 
-                <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
+                <div class="modal-footer">
                     <button type="button" class="btn" onclick="resetImportUpload()">Choose Another File</button>
                     <button type="button" class="btn btn-primary" id="btnSubmitImport" onclick="submitUploadedReport()">⚡ Confirm &amp; Save to Inventory</button>
                 </div>
@@ -822,7 +1103,7 @@
                 </div>
             </div>
 
-            <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
+            <div class="modal-footer">
                 <button type="button" class="btn" onclick="closeModal('scansModal')">Close</button>
             </div>
         </div>
@@ -937,7 +1218,7 @@
                     </div>
                 </div>
 
-                <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;">
+                <div class="modal-footer">
                     <button type="button" class="btn" onclick="closeModal('laptopModal')">Cancel</button>
                     <button type="submit" class="btn btn-primary">💾 Save Customer Job</button>
                 </div>
@@ -956,11 +1237,11 @@
                 <h2>📷 Laptop 3-Photo Inspection</h2>
                 <div id="photoModalLaptopTitle" style="font-size: 0.78rem; color: var(--text-muted);">Select machine</div>
             </div>
-            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                <button type="button" class="btn btn-amber" style="padding: 6px 11px; font-size: 0.8rem;" onclick="openPhoneConnectModal()" title="Connect Mobile Phone via QR Code">📱 Phone Camera (QR)</button>
-                <button type="button" class="btn btn-success" id="btnToggleLiveCam" style="padding: 6px 11px; font-size: 0.8rem;" onclick="toggleLiveCameraView()">📹 Live Camera</button>
-                <button class="modal-close" onclick="closeModal('photoModal')">&times;</button>
+            <div class="modal-header-actions">
+                <button type="button" class="btn btn-amber" onclick="openPhoneConnectModal()" title="Connect Mobile Phone via QR Code">📱 Phone Cam</button>
+                <button type="button" class="btn btn-success" id="btnToggleLiveCam" onclick="toggleLiveCameraView()">📹 Live Cam</button>
             </div>
+            <button class="modal-close" onclick="closeModal('photoModal')">&times;</button>
         </div>
         <div class="modal-body">
             <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
@@ -1028,7 +1309,7 @@
                 </div>
             </div>
 
-            <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px;">
+            <div class="modal-footer">
                 <button type="button" class="btn" onclick="closeModal('photoModal')">Cancel</button>
                 <button type="button" class="btn btn-primary" id="btnSavePhotos" onclick="savePhotosToServer()">☁️ Upload &amp; Sync Photos</button>
             </div>
@@ -1049,8 +1330,8 @@
             <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
                 Scan this QR code with your phone camera or QR scanner to open this laptop's photo capture screen directly on your phone!
             </p>
-            <div id="qrCodeContainer" style="background: #ffffff; padding: 14px; border-radius: 12px; display: inline-block; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
-                <img id="phoneConnectQR" src="" alt="Scan QR code with phone" style="width: 210px; height: 210px; display: block;">
+            <div id="qrCodeContainer" style="background: #ffffff; padding: 14px; border-radius: 12px; display: inline-block; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); max-width: 100%;">
+                <img id="phoneConnectQR" src="" alt="Scan QR code with phone" style="width: 200px; max-width: 100%; height: auto; display: block; margin: 0 auto;">
             </div>
             <div style="font-size: 0.76rem; color: var(--accent); margin-bottom: 12px; word-break: break-all; background: var(--surface-card); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);" id="phoneConnectUrlText">
             </div>
@@ -1060,7 +1341,7 @@
                 2. திறக்கும் லிங்கை கிளிக் செய்யவும் (தானாக Admin Login ஆகிவிடும்).<br>
                 3. உங்கள் போன் கேமரா மூலம் 3 படங்களை எடுத்து <strong>Upload &amp; Sync</strong> கொடுக்கவும்!
             </div>
-            <div style="display: flex; gap: 8px; justify-content: center;">
+            <div class="modal-footer" style="justify-content: center;">
                 <button type="button" class="btn btn-primary" onclick="copyPhoneConnectLink()">📋 Copy Mobile Link</button>
                 <button type="button" class="btn" onclick="closeModal('phoneConnectModal')">Close</button>
             </div>
@@ -1689,7 +1970,7 @@ function createLaptopCardHTML(l) {
 
                     ${isAdmin ? `
                         <button class="btn admin-only" onclick="openEditLaptopModal('${l.id}')">✏️ Edit</button>
-                        <button class="btn btn-danger admin-only" style="flex: 0.3;" onclick="deleteLaptop('${l.id}')">🗑️</button>
+                        <button class="btn btn-danger admin-only btn-delete-card" onclick="deleteLaptop('${l.id}')">🗑️</button>
                     ` : ''}
                 </div>
             </div>
@@ -2507,8 +2788,7 @@ function displayParsedReportConfirmation(filename, p) {
             <span class="auth-badge ${scoreBadge}" style="font-size: 0.82rem; font-weight: 700;">
                 Score: ${p.health_score}/100 (${p.overall_status})
             </span>
-        </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-size: 0.78rem; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; margin-top: 6px;">
+        <div class="parsed-preview-grid">
             <div><span style="color: var(--text-muted);">CPU:</span> ${escapeHtml(p.cpu || 'N/A')}</div>
             <div><span style="color: var(--text-muted);">RAM:</span> ${escapeHtml(p.ram || 'N/A')}</div>
             <div><span style="color: var(--text-muted);">Storage:</span> ${escapeHtml(p.storage || 'N/A')}</div>

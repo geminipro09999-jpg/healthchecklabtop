@@ -953,29 +953,49 @@ $lines.Add('        .alert-box ul { margin-left: 24px; margin-top: 8px; }')
 $lines.Add('        .section-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 24px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2); }')
 $lines.Add('        .section-header { padding: 14px 20px; background: var(--surface-card); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }')
 $lines.Add('        .section-header h2 { font-size: 1.05rem; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 8px; }')
-$lines.Add('        .section-body { padding: 20px; }')
+$lines.Add('        .section-body { padding: 20px; overflow-x: auto; -webkit-overflow-scrolling: touch; }')
 
-$lines.Add('        .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 24px; }')
-$lines.Add('        .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.9rem; }')
-$lines.Add('        .detail-label { color: var(--text-muted); }')
-$lines.Add('        .detail-value { font-weight: 500; color: var(--text); text-align: right; max-width: 65%; word-break: break-word; }')
+$lines.Add('        .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 24px; }
+        .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.9rem; }
+        .detail-label { color: var(--text-muted); }
+        .detail-value { font-weight: 500; color: var(--text); text-align: right; max-width: 65%; word-break: break-word; }
 
-$lines.Add('        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: left; }')
-$lines.Add('        th { background: rgba(0, 0, 0, 0.25); color: var(--text-muted); padding: 10px 12px; font-weight: 600; border-bottom: 1px solid var(--border); }')
-$lines.Add('        td { padding: 10px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }')
-$lines.Add('        tr:hover td { background: rgba(255, 255, 255, 0.02); }')
+        table { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 0.88rem; text-align: left; }
+        th { background: rgba(0, 0, 0, 0.25); color: var(--text-muted); padding: 10px 12px; font-weight: 600; border-bottom: 1px solid var(--border); white-space: nowrap; }
+        td { padding: 10px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        tr:hover td { background: rgba(255, 255, 255, 0.02); }
 
-$lines.Add('        .status-badge { display: inline-block; padding: 3px 9px; border-radius: 6px; font-size: 0.78rem; font-weight: 700; }')
-$lines.Add('        .status-pass { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }')
-$lines.Add('        .status-warn { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; }')
-$lines.Add('        .status-fail { background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid #ef4444; }')
-$lines.Add('        .status-info { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid #0284c7; }')
+        .status-badge { display: inline-block; padding: 3px 9px; border-radius: 6px; font-size: 0.78rem; font-weight: 700; }
+        .status-pass { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }
+        .status-warn { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; }
+        .status-fail { background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid #ef4444; }
+        .status-info { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid #0284c7; }
 
-$lines.Add('        .progress-bar-bg { background: rgba(255, 255, 255, 0.1); border-radius: 9999px; height: 8px; overflow: hidden; width: 100%; margin-top: 6px; }')
-$lines.Add('        .progress-bar-fill { height: 100%; border-radius: 9999px; }')
-$lines.Add('        footer { margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--border); text-align: center; font-size: 0.82rem; color: var(--text-muted); }')
-$lines.Add('        @media print { body { background: #fff !important; color: #000 !important; } .section-card, .kpi-card { background: #fff !important; color: #000 !important; border: 1px solid #ccc !important; box-shadow: none !important; } .detail-label, .kpi-title, .kpi-sub, th { color: #555 !important; } .detail-value, .kpi-value, .header-title h1 { color: #000 !important; } .btn { display: none !important; } }')
-$lines.Add('    </style>')
+        .progress-bar-bg { background: rgba(255, 255, 255, 0.1); border-radius: 9999px; height: 8px; overflow: hidden; width: 100%; margin-top: 6px; }
+        .progress-bar-fill { height: 100%; border-radius: 9999px; }
+        footer { margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--border); text-align: center; font-size: 0.82rem; color: var(--text-muted); }
+
+        @media (max-width: 768px) {
+            body { padding: 12px 10px; }
+            header { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .header-title h1 { font-size: 1.35rem; }
+            .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .score-hero { grid-column: span 2; }
+            .score-number { font-size: 2.2rem; }
+            .details-grid { grid-template-columns: 1fr; gap: 8px; }
+            .section-body { padding: 12px; }
+            .section-header { padding: 10px 14px; }
+            table { font-size: 0.8rem; }
+            th, td { padding: 8px 8px; }
+        }
+
+        @media (max-width: 480px) {
+            .kpi-grid { grid-template-columns: 1fr; }
+            .score-hero { grid-column: span 1; }
+        }
+
+        @media print { body { background: #fff !important; color: #000 !important; } .section-card, .kpi-card { background: #fff !important; color: #000 !important; border: 1px solid #ccc !important; box-shadow: none !important; } .detail-label, .kpi-title, .kpi-sub, th { color: #555 !important; } .detail-value, .kpi-value, .header-title h1 { color: #000 !important; } .btn { display: none !important; } }
+    </style>')
 $lines.Add('</head>')
 $lines.Add('<body>')
 $lines.Add('<div class="container">')
