@@ -158,13 +158,16 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM companies")
     if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT OR IGNORE INTO companies (name) VALUES (?)", ("UNICOMTIC",))
-        cursor.execute("INSERT OR IGNORE INTO companies (name) VALUES (?)", ("Unassigned / Retail",))
         conn.commit()
 
     # Migration: Rename 'Unicom Tech Solutions' to 'UNICOMTIC'
     cursor.execute("UPDATE companies SET name = 'UNICOMTIC' WHERE name = 'Unicom Tech Solutions'")
     cursor.execute("UPDATE laptops SET company_name = 'UNICOMTIC' WHERE company_name = 'Unicom Tech Solutions'")
     cursor.execute("INSERT OR IGNORE INTO companies (name) VALUES (?)", ("UNICOMTIC",))
+
+    # Migration: Remove 'Unassigned / Retail'
+    cursor.execute("UPDATE laptops SET company_name = 'UNICOMTIC' WHERE company_name = 'Unassigned / Retail'")
+    cursor.execute("DELETE FROM companies WHERE name = 'Unassigned / Retail'")
     conn.commit()
     
     # Seed with existing generated report if laptops table is empty
@@ -271,7 +274,6 @@ def get_companies():
                 def sort_key(item):
                     n = item.get("name", "")
                     if n == "UNICOMTIC": return 0
-                    if n == "Unassigned / Retail": return 2
                     return 1
                 result.sort(key=lambda x: (sort_key(x), x.get("name", "")))
                 return result
@@ -288,7 +290,6 @@ def get_companies():
         ORDER BY 
             CASE 
                 WHEN c.name = 'UNICOMTIC' THEN 0 
-                WHEN c.name = 'Unassigned / Retail' THEN 2 
                 ELSE 1 
             END, 
             c.name ASC

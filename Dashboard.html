@@ -2470,7 +2470,7 @@ function openEditLaptopModal(id) {
     const submitBtn = document.getElementById('btnSubmitLaptop');
     if (submitBtn) submitBtn.disabled = false;
 
-    document.getElementById('formCompanyName').value = l.company_name || 'Unassigned / Retail';
+    document.getElementById('formCompanyName').value = l.company_name || 'UNICOMTIC';
     document.getElementById('formCustName').value = l.customer_name || '';
     document.getElementById('formCustPhone').value = l.customer_phone || '';
     document.getElementById('formServiceStatus').value = l.service_status || 'Received';
@@ -3160,7 +3160,7 @@ async function importSelectedScan(filename) {
     }
 
     // Fallback if direct fetch fails
-    const comp = prompt('Assign to Company / Client:', selectedCompany !== 'All' ? selectedCompany : 'Unassigned / Retail');
+    const comp = prompt('Assign to Company / Client:', selectedCompany !== 'All' ? selectedCompany : 'UNICOMTIC');
     if (!comp) return;
 
     try {
