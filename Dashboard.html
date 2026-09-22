@@ -1023,11 +1023,12 @@
             <form id="addCompanyForm" onsubmit="submitNewCompany(event)">
                 <div class="form-group">
                     <label>Company / Client Name <span style="color:var(--red);">*</span> (நிறுவன பெயர்)</label>
-                    <input type="text" id="newCompanyNameInput" required placeholder="e.g. UNICOMTIC" autocomplete="organization">
+                    <input type="text" id="newCompanyNameInput" required placeholder="e.g. UNICOMTIC" autocomplete="organization" oninput="checkDuplicateCompanyInput(this.value)">
+                    <div id="companyDuplicateWarning" style="display: none; color: #ef4444; font-size: 0.8rem; margin-top: 6px; font-weight: 600;">⚠️ Company already exists (நிறுவனம் ஏற்கனவே உள்ளது)</div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn" onclick="closeModal('companyModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">➕ Save Company</button>
+                    <button type="submit" class="btn btn-primary" id="btnSubmitCompany">➕ Save Company</button>
                 </div>
             </form>
         </div>
@@ -1176,7 +1177,8 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>Device Name (Host)</label>
-                        <input type="text" id="formDeviceName" placeholder="e.g. DELL-LATITUDE-5420">
+                        <input type="text" id="formDeviceName" placeholder="e.g. DELL-LATITUDE-5420" oninput="checkDuplicateDeviceInput(this.value)">
+                        <div id="deviceDuplicateWarning" style="display: none; color: #ef4444; font-size: 0.8rem; margin-top: 6px; font-weight: 600;">⚠️ Device already exists (சாதனம் ஏற்கனவே உள்ளது)!</div>
                     </div>
                     <div class="form-group">
                         <label>Manufacturer & Model</label>
@@ -1220,7 +1222,7 @@
 
                 <div class="modal-footer">
                     <button type="button" class="btn" onclick="closeModal('laptopModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">💾 Save Customer Job</button>
+                    <button type="submit" class="btn btn-primary" id="btnSubmitLaptop">💾 Save Customer Job</button>
                 </div>
             </form>
         </div>
@@ -1624,8 +1626,26 @@ function openAddCompanyModal() {
     }
     const inp = document.getElementById('newCompanyNameInput');
     if (inp) inp.value = '';
+    const warn = document.getElementById('companyDuplicateWarning');
+    if (warn) warn.style.display = 'none';
+    const submitBtn = document.getElementById('btnSubmitCompany');
+    if (submitBtn) submitBtn.disabled = false;
     document.getElementById('companyModal').classList.add('active');
     setTimeout(() => { if (inp) inp.focus(); }, 120);
+}
+
+function checkDuplicateCompanyInput(val) {
+    const warn = document.getElementById('companyDuplicateWarning');
+    const submitBtn = document.getElementById('btnSubmitCompany');
+    if (!warn) return;
+    const clean = (val || '').trim().toLowerCase();
+    if (clean && allCompanies.some(c => (c.name || '').trim().toLowerCase() === clean)) {
+        warn.style.display = 'block';
+        if (submitBtn) submitBtn.disabled = true;
+    } else {
+        warn.style.display = 'none';
+        if (submitBtn) submitBtn.disabled = false;
+    }
 }
 
 async function submitNewCompany(event) {
@@ -1638,6 +1658,14 @@ async function submitNewCompany(event) {
     const name = (inp ? inp.value : '').trim();
     if (!name) {
         alert('Please enter a valid company name.');
+        return;
+    }
+
+    // Client-side duplicate check
+    const existing = allCompanies.find(c => (c.name || '').trim().toLowerCase() === name.toLowerCase());
+    if (existing) {
+        alert(`⚠️ Company already exists (நிறுவனம் ஏற்கனவே உள்ளது)!\n\n"${existing.name}" is already registered.`);
+        if (inp) inp.focus();
         return;
     }
 
@@ -2419,6 +2447,10 @@ function openAddLaptopModal() {
     document.getElementById('modalTitle').textContent = '📱 ➕ New Customer Job & Complaints';
     document.getElementById('laptopForm').reset();
     document.getElementById('editLaptopId').value = '';
+    const devWarn = document.getElementById('deviceDuplicateWarning');
+    if (devWarn) devWarn.style.display = 'none';
+    const submitBtn = document.getElementById('btnSubmitLaptop');
+    if (submitBtn) submitBtn.disabled = false;
     document.getElementById('formCompanyName').value = selectedCompany !== 'All' ? selectedCompany : 'UNICOMTIC';
     document.getElementById('laptopModal').classList.add('active');
 }
@@ -2433,6 +2465,11 @@ function openEditLaptopModal(id) {
 
     document.getElementById('modalTitle').textContent = '✏️ Edit Customer Job & Complaints';
     document.getElementById('editLaptopId').value = l.id;
+    const devWarn = document.getElementById('deviceDuplicateWarning');
+    if (devWarn) devWarn.style.display = 'none';
+    const submitBtn = document.getElementById('btnSubmitLaptop');
+    if (submitBtn) submitBtn.disabled = false;
+
     document.getElementById('formCompanyName').value = l.company_name || 'Unassigned / Retail';
     document.getElementById('formCustName').value = l.customer_name || '';
     document.getElementById('formCustPhone').value = l.customer_phone || '';
@@ -2451,6 +2488,26 @@ function openEditLaptopModal(id) {
     document.getElementById('formGpu').value = l.gpu || '';
 
     document.getElementById('laptopModal').classList.add('active');
+}
+
+function checkDuplicateDeviceInput(val) {
+    const warn = document.getElementById('deviceDuplicateWarning');
+    const submitBtn = document.getElementById('btnSubmitLaptop');
+    if (!warn) return;
+    const clean = (val || '').trim().toLowerCase();
+    const editId = document.getElementById('editLaptopId') ? document.getElementById('editLaptopId').value : '';
+    const generic = ['', 'laptop', 'pc', 'unknown'];
+    if (clean && !generic.includes(clean)) {
+        const dup = allLaptops.find(lap => (lap.id !== editId) && (lap.device_name || '').trim().toLowerCase() === clean);
+        if (dup) {
+            warn.innerHTML = `⚠️ Device already exists (சாதனம் ஏற்கனவே உள்ளது)! Registered under <strong>${escapeHtml(dup.company_name)}</strong> (ID: ${escapeHtml(dup.id)})`;
+            warn.style.display = 'block';
+            if (submitBtn) submitBtn.disabled = true;
+            return;
+        }
+    }
+    warn.style.display = 'none';
+    if (submitBtn) submitBtn.disabled = false;
 }
 
 function addQuickComplaint(complaintText) {
@@ -2472,6 +2529,18 @@ async function saveLaptop(event) {
     const editId = document.getElementById('editLaptopId').value;
     const isEdit = !!editId;
 
+    const devName = (document.getElementById('formDeviceName').value || '').trim();
+    const generic = ['', 'laptop', 'pc', 'unknown'];
+    if (devName && !generic.includes(devName.toLowerCase())) {
+        const dup = allLaptops.find(lap => (!isEdit || lap.id !== editId) && (lap.device_name || '').trim().toLowerCase() === devName.toLowerCase());
+        if (dup) {
+            alert(`⚠️ Device already exists (சாதனம் ஏற்கனவே உள்ளது)!\n\nA machine with device name "${devName}" is already registered in inventory under "${dup.company_name}" (ID: ${dup.id}).`);
+            const devInp = document.getElementById('formDeviceName');
+            if (devInp) devInp.focus();
+            return;
+        }
+    }
+
     const complaintsRaw = document.getElementById('formCustComplaint').value.trim();
     const complaintsList = complaintsRaw ? complaintsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
 
@@ -2482,7 +2551,7 @@ async function saveLaptop(event) {
         service_status: document.getElementById('formServiceStatus').value,
         overall_status: document.getElementById('formOverallStatus').value,
         complaints: complaintsList,
-        device_name: document.getElementById('formDeviceName').value.trim() || 'Laptop',
+        device_name: devName || 'Laptop',
         model: document.getElementById('formModel').value.trim(),
         serial_number: document.getElementById('formSerial').value.trim(),
         cpu: document.getElementById('formCpu').value.trim(),
@@ -2501,7 +2570,7 @@ async function saveLaptop(event) {
             body: JSON.stringify(payload)
         });
 
-        const data = await res.json();
+        const data = await safeJson(res);
         if (res.ok && (data.success || data.laptop)) {
             alert('✅ Laptop record saved successfully!');
             closeModal('laptopModal');
@@ -2923,6 +2992,10 @@ async function submitUploadedReport() {
                 alert('⚠️ Please enter the new company name (நிறுவன பெயர் உள்ளிடவும்).');
                 document.getElementById('importNewCompanyInput').focus();
                 return;
+            }
+            const match = allCompanies.find(c => (c.name || '').trim().toLowerCase() === compName.toLowerCase());
+            if (match) {
+                compName = match.name;
             }
         } else {
             compName = compSelect.value.trim();

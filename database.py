@@ -125,6 +125,7 @@ def init_db():
     
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_laptops_company ON laptops(company_name)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_laptops_status ON laptops(service_status)")
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_name_nocase ON companies(name COLLATE NOCASE)")
     
     conn.commit()
     
@@ -296,15 +297,47 @@ def get_companies():
     conn.close()
     return [dict(r) for r in rows]
 
-def add_company(name: str):
-    name = name.strip()
-    if not name:
-        return False, "Company name cannot be empty"
+def find_company_by_name(name: str):
+    """
+    Checks if a company with the given name already exists (case-insensitive, trimmed).
+    Returns company dict if found, else None.
+    """
+    clean_name = (name or "").strip()
+    if not clean_name:
+        return None
 
     sb_cfg = get_supabase_config()
     if sb_cfg[0] and sb_cfg[1]:
         try:
-            supabase_request("POST", "companies", json_data={"name": name}, prefer="resolution=merge-duplicates")
+            res = supabase_request("GET", "companies", params={"name": f"ilike.{clean_name}", "limit": "1"})
+            if res and isinstance(res, list) and len(res) > 0:
+                return dict(res[0])
+        except Exception:
+            pass
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name FROM companies WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1", (clean_name,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return dict(row)
+    return None
+
+def add_company(name: str):
+    name = (name or "").strip()
+    if not name:
+        return False, "Company name cannot be empty"
+
+    # Strict check: duplicate company names are not allowed
+    existing = find_company_by_name(name)
+    if existing:
+        return False, f"Company '{existing.get('name')}' already exists"
+
+    sb_cfg = get_supabase_config()
+    if sb_cfg[0] and sb_cfg[1]:
+        try:
+            supabase_request("POST", "companies", json_data={"name": name})
         except Exception:
             pass
 
@@ -314,10 +347,10 @@ def add_company(name: str):
         cursor.execute("INSERT INTO companies (name) VALUES (?)", (name,))
         conn.commit()
         conn.close()
-        return True, "Company added"
+        return True, f"Company '{name}' added successfully"
     except sqlite3.IntegrityError:
         conn.close()
-        return True, "Company already exists"
+        return False, f"Company '{name}' already exists"
 
 def get_laptops(company=None, search=None, status=None):
     sb_cfg = get_supabase_config()
@@ -507,15 +540,51 @@ def get_report_html_by_filename(filename: str) -> str:
     conn.close()
     return ""
 
+def find_laptop_by_device_name(device_name: str, exclude_id: str = None):
+    """
+    Checks if a machine with the same device name exists (case-insensitive, trimmed).
+    Optionally excludes a specific laptop id (useful when updating).
+    Returns laptop dict if found, else None.
+    """
+    clean_dev = (device_name or "").strip()
+    generic_devs = {"", "laptop", "pc", "unknown"}
+    if not clean_dev or clean_dev.lower() in generic_devs:
+        return None
+
+    sb_cfg = get_supabase_config()
+    if sb_cfg[0] and sb_cfg[1]:
+        try:
+            res = supabase_request("GET", "laptops", params={"device_name": f"ilike.{clean_dev}", "limit": "5"})
+            if res and isinstance(res, list):
+                for r in res:
+                    if exclude_id and str(r.get("id")) == str(exclude_id):
+                        continue
+                    return dict(r)
+        except Exception as e:
+            print(f"Notice: Supabase find_laptop_by_device_name fallback: {e}")
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    if exclude_id:
+        cursor.execute("SELECT * FROM laptops WHERE LOWER(TRIM(device_name)) = LOWER(TRIM(?)) AND id != ? LIMIT 1", (clean_dev, exclude_id))
+    else:
+        cursor.execute("SELECT * FROM laptops WHERE LOWER(TRIM(device_name)) = LOWER(TRIM(?)) LIMIT 1", (clean_dev,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return dict(row)
+    return None
+
 def find_duplicate_laptop(serial_number: str = None, device_name: str = None, company_name: str = None):
     """
-    Checks if a machine with the same serial number (or device name within the same company) already exists.
+    Checks if a machine with the same serial number or device name already exists.
     Returns existing laptop dict or None.
     """
     clean_serial = (serial_number or "").strip()
     clean_dev = (device_name or "").strip()
     clean_comp = (company_name or "").strip()
     generic_serials = {"", "n/a", "none", "default string", "system serial number", "to be filled by o.e.m.", "0123456789"}
+    generic_devs = {"", "laptop", "pc", "unknown"}
 
     sb_cfg = get_supabase_config()
     if sb_cfg[0] and sb_cfg[1]:
@@ -524,13 +593,17 @@ def find_duplicate_laptop(serial_number: str = None, device_name: str = None, co
                 res = supabase_request("GET", "laptops", params={"serial_number": f"ilike.{clean_serial}", "limit": "1"})
                 if res and isinstance(res, list) and len(res) > 0:
                     return res[0]
-            if clean_dev:
+            if clean_dev and clean_dev.lower() not in generic_devs:
                 params = {"device_name": f"ilike.{clean_dev}", "limit": "1"}
                 if clean_comp and clean_comp != "All":
                     params["company_name"] = f"ilike.{clean_comp}"
                 res = supabase_request("GET", "laptops", params=params)
                 if res and isinstance(res, list) and len(res) > 0:
                     return res[0]
+                # Also check globally for same device name
+                res_global = supabase_request("GET", "laptops", params={"device_name": f"ilike.{clean_dev}", "limit": "1"})
+                if res_global and isinstance(res_global, list) and len(res_global) > 0:
+                    return res_global[0]
         except Exception as e:
             print(f"Notice: Supabase find_duplicate fallback: {e}")
 
@@ -539,18 +612,23 @@ def find_duplicate_laptop(serial_number: str = None, device_name: str = None, co
     
     # 1. Unique match by real serial number
     if clean_serial and clean_serial.lower() not in generic_serials:
-        cursor.execute("SELECT * FROM laptops WHERE LOWER(serial_number) = LOWER(?)", (clean_serial,))
+        cursor.execute("SELECT * FROM laptops WHERE LOWER(TRIM(serial_number)) = LOWER(TRIM(?)) LIMIT 1", (clean_serial,))
         row = cursor.fetchone()
         if row:
             conn.close()
             return dict(row)
             
-    # 2. Match by Device Name + Company Name
-    if clean_dev:
+    # 2. Match by Device Name
+    if clean_dev and clean_dev.lower() not in generic_devs:
+        # First check in the given company if specified
         if clean_comp and clean_comp != "All":
-            cursor.execute("SELECT * FROM laptops WHERE LOWER(device_name) = LOWER(?) AND LOWER(company_name) = LOWER(?)", (clean_dev, clean_comp))
-        else:
-            cursor.execute("SELECT * FROM laptops WHERE LOWER(device_name) = LOWER(?)", (clean_dev,))
+            cursor.execute("SELECT * FROM laptops WHERE LOWER(TRIM(device_name)) = LOWER(TRIM(?)) AND LOWER(TRIM(company_name)) = LOWER(TRIM(?)) LIMIT 1", (clean_dev, clean_comp))
+            row = cursor.fetchone()
+            if row:
+                conn.close()
+                return dict(row)
+        # Check across all companies for matching device name
+        cursor.execute("SELECT * FROM laptops WHERE LOWER(TRIM(device_name)) = LOWER(TRIM(?)) LIMIT 1", (clean_dev,))
         row = cursor.fetchone()
         if row:
             conn.close()
@@ -562,6 +640,9 @@ def find_duplicate_laptop(serial_number: str = None, device_name: str = None, co
 def create_laptop(data: dict):
     lap_id = data.get("id") or f"LAP-{int(time.time() % 100000):05d}"
     company = data.get("company_name", "UNICOMTIC").strip() or "UNICOMTIC"
+    existing_comp = find_company_by_name(company)
+    if existing_comp:
+        company = existing_comp.get("name", company)
     
     complaints = data.get("complaints", [])
     if isinstance(complaints, list):
@@ -673,6 +754,12 @@ def update_laptop(laptop_id: str, data: dict):
     # Resolve real laptop ID first to handle cached or mismatched client IDs
     target = get_laptop(laptop_id)
     real_id = target["id"] if target else laptop_id
+
+    if "company_name" in data and data["company_name"]:
+        c_name = str(data["company_name"]).strip()
+        existing_comp = find_company_by_name(c_name)
+        if existing_comp:
+            data["company_name"] = existing_comp.get("name", c_name)
 
     updatable = [
         "company_name", "customer_name", "customer_phone", "device_name", "model",

@@ -520,17 +520,27 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
             if not self.is_admin():
                 return self.send_json({"error": "Admin authorization required to add companies"}, 401)
             body = self.read_json_body()
-            name = body.get("name", "")
+            name = (body.get("name") or "").strip()
             ok, msg = database.add_company(name)
             if ok:
                 return self.send_json({"success": True, "message": msg}, 201)
-            return self.send_json({"error": msg}, 400)
+            return self.send_json({"error": msg}, 409)
 
         # 5. Laptops: Create Laptop / Intake Job (Admin only)
         if path == "/api/laptops":
             if not self.is_admin():
                 return self.send_json({"error": "Admin authorization required to create laptops"}, 401)
             body = self.read_json_body()
+            dev_name = (body.get("device_name") or "").strip()
+            generic_devs = {"", "laptop", "pc", "unknown"}
+
+            if dev_name and dev_name.lower() not in generic_devs:
+                existing = database.find_laptop_by_device_name(dev_name)
+                if existing:
+                    return self.send_json({
+                        "error": f"Device already exists: A machine with device name '{dev_name}' is already registered in inventory under '{existing.get('company_name')}' (ID: {existing.get('id')})."
+                    }, 409)
+
             laptop = database.create_laptop(body)
             return self.send_json({"success": True, "laptop": laptop}, 201)
 
@@ -671,7 +681,7 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 )
                 if existing:
                     return self.send_json({
-                        "error": f"⚠️ Duplicate Machine Rejected: Machine '{dev_name}' (Serial: {serial}) is already registered in inventory under '{existing.get('company_name')}' (ID: {existing.get('id')})."
+                        "error": f"⚠️ Device already exists: Machine '{dev_name}' (Serial: {serial}) is already registered in inventory under '{existing.get('company_name')}' (ID: {existing.get('id')})."
                     }, 409)
 
                 new_laptop = database.create_laptop({
@@ -1162,6 +1172,16 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                 return self.send_json({"error": "Admin authorization required to edit laptops"}, 401)
             laptop_id = path.replace("/api/laptops/", "").strip()
             body = self.read_json_body()
+            dev_name = (body.get("device_name") or "").strip()
+            generic_devs = {"", "laptop", "pc", "unknown"}
+
+            if dev_name and dev_name.lower() not in generic_devs:
+                existing = database.find_laptop_by_device_name(dev_name, exclude_id=laptop_id)
+                if existing:
+                    return self.send_json({
+                        "error": f"Device already exists: Another machine with device name '{dev_name}' is already registered in inventory under '{existing.get('company_name')}' (ID: {existing.get('id')})."
+                    }, 409)
+
             updated = database.update_laptop(laptop_id, body)
             if not updated:
                 return self.send_json({"error": "Laptop not found"}, 404)
