@@ -11,7 +11,7 @@
     "folder_name_prefix": "LaptopHealth_"
   },
   "supabase": {
-    "url": "https://dfpgladflvrjopbcxbxh.supabase.co",
-    "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmcGdsYWRmbHZyam9wYmN4YnhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTAzNDc4NCwiZXhwIjoyMTA0NjEwNzg0fQ.obVZjFLtxofNhlYBrxQRPVtKko3gnShvo-Yhyxw2Hvk"
+    "url": "https://dhqhnwsckgvbgonlbvzn.supabase.co",
+    "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRocWhud3Nja2d2YmdvbmxidnpuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjM1NzE0MywiZXhwIjoyMDk3OTMzMTQzfQ.BRVbASsFipc2PoZ2gjVNi7U3sHps-ThBy3dQQKngl8w"
   }
 }

@@ -12,6 +12,18 @@ import tempfile
 from datetime import datetime
 import hashlib
 import requests
+import re
+
+def safe_battery_int(val, default=100):
+    if val is None or val == "" or str(val).strip().upper() in ("N/A", "NONE"):
+        return default
+    try:
+        m = re.search(r'([0-9]+)', str(val))
+        if m:
+            return int(m.group(1))
+        return default
+    except Exception:
+        return default
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if os.environ.get("VERCEL") or not os.access(BASE_DIR, os.W_OK):
@@ -659,7 +671,7 @@ def create_laptop(data: dict):
     sb_cfg = get_supabase_config()
     if sb_cfg[0] and sb_cfg[1]:
         try:
-            supabase_request("POST", "companies", json_data={"name": company}, prefer="resolution=merge-duplicates")
+            supabase_request("POST", "companies", params={"on_conflict": "name"}, json_data={"name": company}, prefer="resolution=merge-duplicates")
             rd = data.get("report_data", {})
             if isinstance(rd, str):
                 try:
@@ -678,7 +690,7 @@ def create_laptop(data: dict):
                 "ram": data.get("ram", ""),
                 "storage": data.get("storage", ""),
                 "gpu": data.get("gpu", ""),
-                "battery_health": int(data.get("battery_health", 100)),
+                "battery_health": safe_battery_int(data.get("battery_health", 100)),
                 "overall_status": data.get("overall_status", "Healthy"),
                 "service_status": data.get("service_status", "Received"),
                 "complaints": complaints_list,
@@ -695,7 +707,7 @@ def create_laptop(data: dict):
                 "created_at": data.get("created_at") or now,
                 "updated_at": now
             }
-            supabase_request("POST", "laptops", json_data=sb_row, prefer="resolution=merge-duplicates")
+            supabase_request("POST", "laptops", params={"on_conflict": "id"}, json_data=sb_row, prefer="resolution=merge-duplicates")
         except Exception as e:
             print(f"Notice: Supabase create_laptop sync: {e}")
 
@@ -724,7 +736,7 @@ def create_laptop(data: dict):
         data.get("ram", ""),
         data.get("storage", ""),
         data.get("gpu", ""),
-        int(data.get("battery_health", 100)),
+        safe_battery_int(data.get("battery_health", 100)),
         data.get("overall_status", "Healthy"),
         data.get("service_status", "Received"),
         complaints_json,
@@ -761,6 +773,9 @@ def update_laptop(laptop_id: str, data: dict):
         existing_comp = find_company_by_name(c_name)
         if existing_comp:
             data["company_name"] = existing_comp.get("name", c_name)
+
+    if "battery_health" in data:
+        data["battery_health"] = safe_battery_int(data["battery_health"])
 
     updatable = [
         "company_name", "customer_name", "customer_phone", "device_name", "model",
