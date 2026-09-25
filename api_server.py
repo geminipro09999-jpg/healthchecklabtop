@@ -189,6 +189,18 @@ def parse_html_report_text(html_content: str) -> dict:
     warnings = re.findall(r'<li>([^<]+)</li>', html_content)
     data["complaints"] = warnings if warnings else ["Diagnostic Health Check Completed"]
 
+    # OS
+    m_os = re.search(r'Operating System</span>\s*<span[^>]*>([^<]+)</span>', html_content, re.IGNORECASE)
+    data["os"] = m_os.group(1).strip() if m_os else "Microsoft Windows"
+
+    # User
+    m_user = re.search(r'User:\s*([^|<]+)', html_content, re.IGNORECASE)
+    data["currentUser"] = m_user.group(1).strip() if m_user else ""
+
+    # Recommendations
+    recs = re.findall(r'<li[^>]*>((?:Storage Recommendation|Recommendation|Maintenance):[^<]+)</li>', html_content, re.IGNORECASE)
+    data["recommendations"] = recs
+
     return data
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -851,6 +863,9 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                                 "ram": f"{p_json.get('ramTotalGB', 0)} GB",
                                 "storage": p_json.get("disks", ""),
                                 "gpu": p_json.get("gpu", ""),
+                                "os": p_json.get("os", "Microsoft Windows"),
+                                "currentUser": p_json.get("currentUser", "") or p_json.get("user", "") or p_json.get("User", ""),
+                                "recommendations": p_json.get("recommendations", []),
                                 "battery_health": b_val,
                                 "battery_charge": b_charge,
                                 "battery_status": b_status,

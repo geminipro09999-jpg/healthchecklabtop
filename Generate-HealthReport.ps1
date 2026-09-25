@@ -1542,6 +1542,7 @@ $ReportJsonObj = [PSCustomObject]@{
     serialNumber         = $SerialNumber
     systemType           = $SystemType
     os                   = "$OSCaption (Build $OSBuild, $OSArch)"
+    currentUser          = $CurrentUserName
     cpu                  = "$CpuName ($CpuCores C / $CpuThreads T @ $CpuMaxSpeedGHz GHz)"
     cpuLoad              = $CpuLoad
     ramTotalGB           = $TotalRamGB
@@ -1655,6 +1656,9 @@ if ($AutoUpload -and $ServerUrl) {
                 battery_status          = $BatteryStatus
                 overall_status          = if ($HealthScore -ge 80) { "Healthy" } elseif ($HealthScore -ge 50) { "Warning" } else { "Critical" }
                 complaints              = $complaintsList
+                recommendations         = $Recommendations
+                currentUser             = $CurrentUserName
+                os                      = "$OSCaption (Build $OSBuild, $OSArch)"
             }
         }
         

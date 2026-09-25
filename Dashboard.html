@@ -935,7 +935,7 @@
             <button id="btnLogin" class="btn btn-amber" onclick="openLoginModal()">🔐 Admin Login</button>
             
             <!-- Admin-Only Buttons -->
-            <button id="btnNewJob" class="btn btn-primary admin-only" style="display: none;" onclick="openAddLaptopModal()">📱 ➕ New Customer Job</button>
+            <button id="btnNewJob" class="btn btn-primary admin-only" style="display: none;" onclick="openAddLaptopModal()">📱 ➕ New Laptop Entry</button>
             <button id="btnImportScan" class="btn btn-success admin-only" style="display: none;" onclick="openLocalScansModal()">⚡ Import Local Scan</button>
             <button id="btnChangePwd" class="btn admin-only" style="display: none;" onclick="openChangePwdModal()">🔑 Password</button>
             <button id="btnLogout" class="btn btn-danger admin-only" style="display: none;" onclick="logoutAdmin()">🚪 Logout</button>
@@ -994,7 +994,7 @@
 
         <div class="search-box">
             <span>🔍</span>
-            <input type="text" id="searchInput" placeholder="Search customer, phone, complaint, device name, serial..." oninput="onSearchInput()">
+            <input type="text" id="searchInput" placeholder="Search staff, device name, serial, specs, complaints..." oninput="onSearchInput()">
         </div>
 
         <div class="filters">
@@ -1034,7 +1034,7 @@
 
 <!-- FLOATING BOTTOM BAR FOR MOBILE (Admin only) -->
 <div class="mobile-fab-bar admin-only" id="mobileFabBar" style="display: none;">
-    <button class="btn btn-primary" onclick="openAddLaptopModal()">➕ New Customer Job</button>
+    <button class="btn btn-primary" onclick="openAddLaptopModal()">➕ New Laptop Entry</button>
     <button class="btn btn-success" onclick="openLocalScansModal()">⚡ Import Scan</button>
 </div>
 
@@ -1111,9 +1111,9 @@
             </p>
             <form id="addCompanyForm" onsubmit="submitNewCompany(event)">
                 <div class="form-group">
-                    <label>Company / Client Name <span style="color:var(--red);">*</span> (நிறுவன பெயர்)</label>
+                    <label>Company / Client Name <span style="color:var(--red);">*</span></label>
                     <input type="text" id="newCompanyNameInput" required placeholder="e.g. UNICOMTIC" autocomplete="organization" oninput="checkDuplicateCompanyInput(this.value)">
-                    <div id="companyDuplicateWarning" style="display: none; color: #ef4444; font-size: 0.8rem; margin-top: 6px; font-weight: 600;">⚠️ Company already exists (நிறுவனம் ஏற்கனவே உள்ளது)</div>
+                    <div id="companyDuplicateWarning" style="display: none; color: #ef4444; font-size: 0.8rem; margin-top: 6px; font-weight: 600;">⚠️ Company already exists</div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn" onclick="closeModal('companyModal')">Cancel</button>
@@ -1150,23 +1150,23 @@
             <div id="importConfirmSection" style="display: none;">
                 <div class="parsed-preview-box" id="parsedPreviewBox"></div>
 
-                <div class="form-section-title">🏢 Assign Client &amp; Customer Details (நிறுவன &amp; பயனர் விபரம்)</div>
+                <div class="form-section-title">🏢 Assign Company &amp; Staff Details</div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Company / Client Name <span style="color:var(--red);">*</span> (நிறுவனம்)</label>
+                        <label>Company / Client Name <span style="color:var(--red);">*</span></label>
                         <select id="importCompanySelect" onchange="handleImportCompanyChange(this.value)" style="width: 100%; padding: 9px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.88rem;">
                             <!-- Populated dynamically with all companies -->
                         </select>
                         <input type="text" id="importNewCompanyInput" placeholder="✍️ Type new company name..." style="display: none; margin-top: 8px;">
                     </div>
                     <div class="form-group">
-                        <label>Customer / User Name <span style="color:var(--red);">*</span> (பயனர் / உரிமையாளர் பெயர்)</label>
+                        <label>Assigned Staff / Employee Name <span style="color:var(--red);">*</span></label>
                         <input type="text" id="importCustomerName" placeholder="e.g. John Doe, Kamalanathan" required>
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Customer Phone (Optional)</label>
+                        <label>Staff Phone (Optional)</label>
                         <input type="text" id="importCustomerPhone" placeholder="e.g. +94 77 123 4567">
                     </div>
                     <div class="form-group">
@@ -1206,7 +1206,7 @@
 <div class="modal-backdrop" id="laptopModal">
     <div class="modal-card">
         <div class="modal-header">
-            <h2 id="modalTitle">📱 ➕ New Customer Job & Complaints</h2>
+            <h2 id="modalTitle">📱 ➕ New Laptop / Staff Asset Record</h2>
             <button class="modal-close" onclick="closeModal('laptopModal')">&times;</button>
         </div>
         <div class="modal-body">
@@ -1214,11 +1214,11 @@
                 <input type="hidden" id="editLaptopId">
 
                 <!-- Section 0: Client Company Multi-Tenancy -->
-                <div class="form-section-title">🏢 Client / Company Information (நிறுவன விபரம்)</div>
+                <div class="form-section-title">🏢 Company Information</div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Company / Client Name *</label>
-                        <input type="text" id="formCompanyName" list="companyDatalist" required placeholder="e.g. Virtusa, ABC Tech, Retail Walk-in">
+                        <input type="text" id="formCompanyName" list="companyDatalist" required placeholder="e.g. UNICOMTIC, Virtusa, ABC Tech">
                         <datalist id="companyDatalist"></datalist>
                     </div>
                     <div class="form-group">
@@ -1234,20 +1234,20 @@
                 </div>
 
                 <!-- Section 1: Customer & Reported Complaints -->
-                <div class="form-section-title">👤 Contact Person & Complaints (வாடிக்கையாளர் புகார்கள்)</div>
+                <div class="form-section-title">👤 Staff Member &amp; Issues / Notes</div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Customer / Contact Person *</label>
-                        <input type="text" id="formCustName" required placeholder="e.g. Ramesh Kumar">
+                        <label>Assigned Staff / Custodian Name *</label>
+                        <input type="text" id="formCustName" required placeholder="e.g. Ramesh Kumar / Staff Name">
                     </div>
                     <div class="form-group">
-                        <label>Phone / WhatsApp</label>
+                        <label>Staff Phone / WhatsApp</label>
                         <input type="tel" id="formCustPhone" placeholder="e.g. 0771234567">
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label>Quick Complaint Picker (உடனடி புகார் தேர்வு):</label>
+                    <label>Quick Hardware Issue Picker:</label>
                     <div class="complaint-pills">
                         <button type="button" class="pill-btn" onclick="addQuickComplaint('Heating issue / Fan noisy')">🔥 Heating Issue</button>
                         <button type="button" class="pill-btn" onclick="addQuickComplaint('Battery drains fast / Not charging')">🔋 Battery Issue</button>
@@ -1258,16 +1258,16 @@
                         <button type="button" class="pill-btn" onclick="addQuickComplaint('Water / Liquid spill')">💧 Liquid Spill</button>
                         <button type="button" class="pill-btn" onclick="addQuickComplaint('Physical body / Hinge damage')">🔩 Hinge Broken</button>
                     </div>
-                    <textarea id="formCustComplaint" rows="2" placeholder="List customer complaints, symptoms, or requested repairs..."></textarea>
+                    <textarea id="formCustComplaint" rows="2" placeholder="List reported issues, symptoms, or requested repairs..."></textarea>
                 </div>
 
                 <!-- Section 2: Hardware Specifications -->
-                <div class="form-section-title">⚙️ Laptop Specifications (மடிக்கணினி விபரங்கள்)</div>
+                <div class="form-section-title">⚙️ Hardware Specifications</div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Device Name (Host)</label>
                         <input type="text" id="formDeviceName" placeholder="e.g. DELL-LATITUDE-5420" oninput="checkDuplicateDeviceInput(this.value)">
-                        <div id="deviceDuplicateWarning" style="display: none; color: #ef4444; font-size: 0.8rem; margin-top: 6px; font-weight: 600;">⚠️ Device already exists (சாதனம் ஏற்கனவே உள்ளது)!</div>
+                        <div id="deviceDuplicateWarning" style="display: none; color: #ef4444; font-size: 0.8rem; margin-top: 6px; font-weight: 600;">⚠️ Device already exists!</div>
                     </div>
                     <div class="form-group">
                         <label>Manufacturer & Model</label>
@@ -1311,7 +1311,7 @@
 
                 <div class="modal-footer">
                     <button type="button" class="btn" onclick="closeModal('laptopModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary" id="btnSubmitLaptop">💾 Save Customer Job</button>
+                    <button type="submit" class="btn btn-primary" id="btnSubmitLaptop">💾 Save Laptop Record</button>
                 </div>
             </form>
         </div>
@@ -1427,10 +1427,10 @@
             <div style="font-size: 0.76rem; color: var(--accent); margin-bottom: 12px; word-break: break-all; background: var(--surface-card); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);" id="phoneConnectUrlText">
             </div>
             <div style="font-size: 0.78rem; color: #cbd5e1; text-align: left; line-height: 1.5; background: rgba(56,189,248,0.08); padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(56,189,248,0.2); margin-bottom: 14px;">
-                <strong>📲 How it works (எப்படி பயன்படுத்துவது):</strong><br>
-                1. உங்கள் மொபைல் கேமரா அல்லது Google Lens-ஐ QR Code நோக்கிப் பிடிக்கவும்.<br>
-                2. திறக்கும் லிங்கை கிளிக் செய்யவும் (தானாக Admin Login ஆகிவிடும்).<br>
-                3. உங்கள் போன் கேமரா மூலம் 3 படங்களை எடுத்து <strong>Upload &amp; Sync</strong> கொடுக்கவும்!
+                <strong>📲 How it works:</strong><br>
+                1. Point your mobile phone camera or Google Lens at the QR Code.<br>
+                2. Tap the link to open the mobile photo capture interface (Admin logs in automatically).<br>
+                3. Capture the 3 device photos and tap <strong>Upload &amp; Sync</strong>!
             </div>
             <div class="modal-footer" style="justify-content: center;">
                 <button type="button" class="btn btn-primary" onclick="copyPhoneConnectLink()">📋 Copy Mobile Link</button>
@@ -1635,7 +1635,7 @@ async function logoutAdmin(isAuto = false) {
     updateAuthUI();
     renderLaptops();
     if (isAuto) {
-        alert('⏳ 1 மணிநேரம் எந்த நடவடிக்கையும் இல்லாததால் (1 Hour Inactivity), Admin session பாதுகாப்பிற்காக Logout செய்யப்பட்டுள்ளது.\nதேவைப்பட்டால் மீண்டும் Login செய்யவும்.');
+        alert('⏳ Admin session logged out automatically due to 1 hour of inactivity for security.\nPlease log in again if needed.');
     }
 }
 
@@ -1779,7 +1779,7 @@ async function submitNewCompany(event) {
     // Client-side duplicate check
     const existing = allCompanies.find(c => (c.name || '').trim().toLowerCase() === name.toLowerCase());
     if (existing) {
-        alert(`⚠️ Company already exists (நிறுவனம் ஏற்கனவே உள்ளது)!\n\n"${existing.name}" is already registered.`);
+        alert(`⚠️ Company already exists!\n\n"${existing.name}" is already registered.`);
         if (inp) inp.focus();
         return;
     }
@@ -1978,7 +1978,7 @@ function getBatteryVerdict(laptop) {
             isDown: true,
             badgeHtml: `<span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.25); border: 1px solid #ef4444; color: #ff6b6b; font-weight: 800; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; letter-spacing: 0.3px;">💀 BATTERY DEAD</span>`,
             alertHtml: `<div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; padding: 6px 10px; margin-top: 6px; font-size: 0.76rem; color: #fca5a5; display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 1rem;">💀</span> <div><strong>உண்மை நிலை (Battery Status):</strong> பேட்டரி முற்றிலும் செயலிழந்துள்ளது (DEAD)! புதிய பேட்டரி உடனே மாற்ற வேண்டும்.</div>
+                <span style="font-size: 1rem;">💀</span> <div><strong>Battery Verdict:</strong> Battery is completely DEAD! Replacement is required immediately.</div>
             </div>`,
             color: '#ef4444'
         };
@@ -1991,7 +1991,7 @@ function getBatteryVerdict(laptop) {
             isDown: true,
             badgeHtml: `<span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.18); border: 1px solid #f87171; color: #fca5a5; font-weight: 750; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem;">⚠️ FULLY DOWN (${bh}%)</span>`,
             alertHtml: `<div style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 6px; padding: 6px 10px; margin-top: 6px; font-size: 0.76rem; color: #fde68a; display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 1rem;">⚠️</span> <div><strong>உண்மை நிலை (Battery Status):</strong> பேட்டரி பேக்கப் மிக பலவீனமாக உள்ளது (FULLY DOWN). மின்சாரம் நின்றால் உடனே ஆஃப் ஆகலாம்.</div>
+                <span style="font-size: 1rem;">⚠️</span> <div><strong>Battery Verdict:</strong> Battery backup is critically degraded (FULLY DOWN). Machine may shut down abruptly without AC power.</div>
             </div>`,
             color: '#f87171'
         };
@@ -2030,7 +2030,40 @@ function getBatteryVerdict(laptop) {
 }
 
 /* =========================================================
-   EXCEL / CSV EXPORT LOGIC (WITH UTF-8 BOM)
+   HELPER: RESOLVE ASSIGNED STAFF & WINDOWS ACCOUNT
+   ========================================================= */
+function getStaffAndAccount(lap) {
+    const rd = lap.report_data || {};
+    let windowsUser = 'N/A';
+    let assignedStaff = 'Unassigned';
+    const rawCust = (lap.customer_name || '').trim();
+
+    // 1. Resolve Windows User Account
+    if (typeof rd === 'object' && rd !== null && (rd.currentUser || rd.user || rd.User)) {
+        windowsUser = rd.currentUser || rd.user || rd.User;
+    } else if (rawCust.includes('\\')) {
+        windowsUser = rawCust;
+    } else if (lap.report_html) {
+        const uMatch = lap.report_html.match(/User:\s*([^|<]+)/i);
+        if (uMatch && uMatch[1]) windowsUser = uMatch[1].trim();
+    }
+
+    // 2. Resolve Assigned Staff Name
+    if (rawCust && !rawCust.includes('\\')) {
+        assignedStaff = rawCust;
+    } else if (rawCust.includes('\\')) {
+        const uParts = rawCust.split('\\');
+        assignedStaff = uParts[uParts.length - 1]; // e.g. "unico"
+    } else if (windowsUser !== 'N/A') {
+        const uParts = windowsUser.split('\\');
+        assignedStaff = uParts[uParts.length - 1];
+    }
+
+    return { assignedStaff, windowsUser };
+}
+
+/* =========================================================
+   EXCEL / CSV EXPORT LOGIC (WITH SPECS & RECOMMENDATIONS)
    ========================================================= */
 function exportLaptopsToExcel() {
     const search = (document.getElementById('searchInput') ? document.getElementById('searchInput').value : '').toLowerCase().trim();
@@ -2067,31 +2100,33 @@ function exportLaptopsToExcel() {
 
     const headers = [
         "No.",
-        "Company (நிறுவனம்)",
-        "Device Name (சாதனம்)",
-        "Assigned User Account (பயனாளர் கணக்கு)",
-        "Customer / Custodian (பெயர்)",
-        "Phone Number (தொலைபேசி)",
-        "Laptop Model (மாடல்)",
-        "Serial Number (வரிசை எண்)",
-        "Battery Health % (பேட்டரி ஆயுள்)",
-        "Battery Verdict - Truth (பேட்டரி உண்மை நிலை)",
-        "Battery Cycles (சுழற்சிகள்)",
-        "Hardware Issues & Complaints (சிக்கல்கள் & குறைபாடுகள்)",
-        "Overall Health Status (ஒட்டுமொத்த நிலை)",
-        "Service Status (சேவை நிலை)",
-        "Scan / Inspection Date (தேதி & நேரம்)"
+        "Company",
+        "Device Name",
+        "Assigned Staff",
+        "Windows User Account",
+        "Staff Phone",
+        "Laptop Model",
+        "Serial Number",
+        "Processor (CPU)",
+        "Memory (RAM)",
+        "Storage (Disks)",
+        "Graphics (GPU)",
+        "Operating System",
+        "Battery Health %",
+        "Battery Verdict",
+        "Battery Cycles",
+        "Hardware Issues & Complaints",
+        "Recommendations & Maintenance",
+        "Overall Health Status",
+        "Service Status",
+        "Scan / Inspection Date"
     ];
 
     const rows = [];
     targetList.forEach((lap, idx) => {
         const bv = getBatteryVerdict(lap);
-
-        let userAccount = 'N/A';
         const rd = lap.report_data || {};
-        if (typeof rd === 'object' && rd !== null) {
-            userAccount = rd.currentUser || rd.user || rd.User || 'N/A';
-        }
+        const staffInfo = getStaffAndAccount(lap);
 
         let issues = 'None';
         if (Array.isArray(lap.complaints) && lap.complaints.length > 0) {
@@ -2114,21 +2149,68 @@ function exportLaptopsToExcel() {
             }
         }
 
+        // Recommendations & Action Required
+        let recs = [];
+        if (rd && Array.isArray(rd.recommendations) && rd.recommendations.length > 0) {
+            recs.push(...rd.recommendations);
+        }
+        if (lap.battery_health !== null && lap.battery_health !== undefined && lap.battery_health < 50 && (rd.hasBattery !== false)) {
+            recs.push("Battery Replacement Recommended: Capacity is below 50%");
+        }
+        if (bv && bv.verdict && bv.verdict.toLowerCase().includes('replace')) {
+            if (!recs.some(r => r.toLowerCase().includes('battery'))) {
+                recs.push(bv.verdict);
+            }
+        }
+        if (Array.isArray(pDisks)) {
+            pDisks.forEach(d => {
+                if (d.SmartStatus === 'FAILED') recs.push(`Storage Alert: Replace failing disk (${d.FriendlyName || 'Drive'})`);
+                if (d.RemainingEndurance !== null && d.RemainingEndurance < 15) {
+                    recs.push(`Storage Warning: Drive ${d.FriendlyName || ''} endurance critical (${d.RemainingEndurance}%)`);
+                }
+            });
+        }
+        const recText = recs.length > 0 ? recs.join(' | ') : 'All hardware optimal / No immediate action required';
+
+        // Hardware Specs
+        const cpuSpec = String(lap.cpu || (rd && rd.cpu) || 'N/A');
+        const ramSpec = String(lap.ram || (rd && rd.ramTotalGB ? rd.ramTotalGB + ' GB' : '') || 'N/A');
+        const storageSpec = String(lap.storage || (rd && rd.disks) || 'N/A');
+        const gpuSpec = String(lap.gpu || (rd && rd.gpu) || 'N/A');
+        let osSpec = (rd && rd.os) || '';
+        if (!osSpec && lap.report_html) {
+            const osMatch = lap.report_html.match(/Operating System<\/span>\s*<span[^>]*>([^<]+)<\/span>/i);
+            if (osMatch && osMatch[1]) osSpec = osMatch[1].trim();
+        }
+        if (!osSpec) osSpec = 'Microsoft Windows';
+
+        // Battery Info
+        const isDesktop = (rd && rd.hasBattery === false) || (lap.model && lap.model.toLowerCase().includes('desktop')) || (rd && rd.systemType === 'Desktop');
+        const batHealthText = isDesktop ? 'N/A (Desktop PC)' : (lap.battery_health !== undefined && lap.battery_health !== null ? `${lap.battery_health}%` : 'N/A');
+        const batVerdictText = isDesktop ? 'Desktop (Direct AC Power)' : bv.verdict;
+        const batCyclesText = isDesktop ? 'N/A (Desktop PC)' : String(lap.battery_cycle_count || (rd && rd.batteryCycleCount) || 'N/A');
+
         const scanDate = formatReportDate(lap);
 
         rows.push([
             String(idx + 1),
             String(lap.company_name || 'Unassigned'),
             String(lap.device_name || ''),
-            String(userAccount),
-            String(lap.customer_name || 'Custodian'),
-            String(lap.customer_phone || ''),
-            String(lap.model || ''),
-            String(lap.serial_number || ''),
-            lap.battery_health !== undefined && lap.battery_health !== null ? `${lap.battery_health}%` : 'N/A',
-            bv.verdict,
-            String(lap.battery_cycle_count || 'N/A'),
+            String(staffInfo.assignedStaff),
+            String(staffInfo.windowsUser),
+            String(lap.customer_phone || 'N/A'),
+            String(lap.model || (rd && rd.model) || ''),
+            String(lap.serial_number || (rd && rd.serialNumber) || ''),
+            cpuSpec,
+            ramSpec,
+            storageSpec,
+            gpuSpec,
+            osSpec,
+            batHealthText,
+            batVerdictText,
+            batCyclesText,
             issues,
+            recText,
             String(lap.overall_status || 'Healthy'),
             String(lap.service_status || 'Received'),
             scanDate
@@ -2373,12 +2455,17 @@ function createLaptopCardHTML(l) {
 
                 <div class="complaint-box">
                     <div class="complaint-header">
-                        <span>👤 ${l.customer_name || 'Customer'} ${l.customer_phone ? '<small style="color: var(--accent); font-family: monospace;">(' + l.customer_phone + ')</small>' : ''}</span>
+                        <span>👤 Staff: <strong>${escapeHtml(getStaffAndAccount(l).assignedStaff)}</strong>${getStaffAndAccount(l).windowsUser !== 'N/A' && getStaffAndAccount(l).windowsUser !== getStaffAndAccount(l).assignedStaff ? ` <small style="color: var(--text-muted); font-family: monospace;">(${escapeHtml(getStaffAndAccount(l).windowsUser)})</small>` : ''}${l.customer_phone ? ' <small style="color: var(--accent); font-family: monospace;">(' + l.customer_phone + ')</small>' : ''}</span>
                         <span class="status-pill ${sPillClass}">${sStat}</span>
                     </div>
                     ${complaintText ? `
                         <div class="complaint-text">
                             <strong>⚠️ Complaints / Notes:</strong> ${complaintText}
+                        </div>
+                    ` : ''}
+                    ${(l.report_data && Array.isArray(l.report_data.recommendations) && l.report_data.recommendations.length > 0) ? `
+                        <div style="margin-top: 6px; padding: 5px 8px; background: rgba(56, 189, 248, 0.08); border-left: 3px solid var(--accent); border-radius: 4px; font-size: 0.73rem; color: #bae6fd;">
+                            <strong>💡 Recommendation:</strong> ${escapeHtml(l.report_data.recommendations[0])}${l.report_data.recommendations.length > 1 ? ` <span style="color: var(--text-muted); font-size: 0.7rem;">(+${l.report_data.recommendations.length - 1} more)</span>` : ''}
                         </div>
                     ` : ''}
                 </div>
@@ -2403,7 +2490,7 @@ function createLaptopCardHTML(l) {
                         <div class="spec-item" style="grid-column: span 2; background: ${bVerdict.isDead ? 'rgba(239, 68, 68, 0.12)' : (bVerdict.isDown ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)')}; border: 1px solid ${bVerdict.isDead ? 'rgba(239, 68, 68, 0.45)' : (bVerdict.isDown ? 'rgba(245, 158, 11, 0.45)' : 'rgba(16, 185, 129, 0.25)')}; padding: 8px 12px; border-radius: 8px;">
                             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
                                 <div>
-                                    <span class="spec-label" style="color: ${bVerdict.color}; font-weight: 700;">🔋 பேட்டரி உண்மை நிலை</span>
+                                    <span class="spec-label" style="color: ${bVerdict.color}; font-weight: 700;">🔋 Battery Health Verdict</span>
                                     <div style="margin-top: 3px;">
                                         ${bVerdict.badgeHtml}
                                     </div>
@@ -2884,7 +2971,7 @@ function openAddLaptopModal() {
         openLoginModal();
         return;
     }
-    document.getElementById('modalTitle').textContent = '📱 ➕ New Customer Job & Complaints';
+    document.getElementById('modalTitle').textContent = '📱 ➕ New Laptop / Staff Asset Record';
     document.getElementById('laptopForm').reset();
     document.getElementById('editLaptopId').value = '';
     const devWarn = document.getElementById('deviceDuplicateWarning');
@@ -2903,7 +2990,7 @@ function openEditLaptopModal(id) {
     const l = allLaptops.find(x => x.id === id);
     if (!l) return;
 
-    document.getElementById('modalTitle').textContent = '✏️ Edit Customer Job & Complaints';
+    document.getElementById('modalTitle').textContent = '✏️ Edit Staff & Laptop Record';
     document.getElementById('editLaptopId').value = l.id;
     const devWarn = document.getElementById('deviceDuplicateWarning');
     if (devWarn) devWarn.style.display = 'none';
@@ -2940,7 +3027,7 @@ function checkDuplicateDeviceInput(val) {
     if (clean && !generic.includes(clean)) {
         const dup = allLaptops.find(lap => (lap.id !== editId) && (lap.device_name || '').trim().toLowerCase() === clean);
         if (dup) {
-            warn.innerHTML = `⚠️ Device already exists (சாதனம் ஏற்கனவே உள்ளது)! Registered under <strong>${escapeHtml(dup.company_name)}</strong> (ID: ${escapeHtml(dup.id)})`;
+            warn.innerHTML = `⚠️ Device already exists! Registered under <strong>${escapeHtml(dup.company_name)}</strong> (ID: ${escapeHtml(dup.id)})`;
             warn.style.display = 'block';
             if (submitBtn) submitBtn.disabled = true;
             return;
@@ -2974,7 +3061,7 @@ async function saveLaptop(event) {
     if (devName && !generic.includes(devName.toLowerCase())) {
         const dup = allLaptops.find(lap => (!isEdit || lap.id !== editId) && (lap.device_name || '').trim().toLowerCase() === devName.toLowerCase());
         if (dup) {
-            alert(`⚠️ Device already exists (சாதனம் ஏற்கனவே உள்ளது)!\n\nA machine with device name "${devName}" is already registered in inventory under "${dup.company_name}" (ID: ${dup.id}).`);
+            alert(`⚠️ Device already exists!\n\nA machine with device name "${devName}" is already registered in inventory under "${dup.company_name}" (ID: ${dup.id}).`);
             const devInp = document.getElementById('formDeviceName');
             if (devInp) devInp.focus();
             return;
@@ -3428,7 +3515,7 @@ async function submitUploadedReport() {
         if (compSelect.value === '__NEW__') {
             compName = (document.getElementById('importNewCompanyInput').value || '').trim();
             if (!compName) {
-                alert('⚠️ Please enter the new company name (நிறுவன பெயர் உள்ளிடவும்).');
+                alert('⚠️ Please enter the new company name.');
                 document.getElementById('importNewCompanyInput').focus();
                 return;
             }

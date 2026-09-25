@@ -181,6 +181,27 @@ def init_db():
     cursor.execute("UPDATE laptops SET company_name = 'UNICOMTIC' WHERE company_name = 'Unassigned / Retail'")
     cursor.execute("DELETE FROM companies WHERE name = 'Unassigned / Retail'")
     conn.commit()
+
+    # Migration: Ensure report_data has currentUser
+    try:
+        cursor.execute("SELECT id, customer_name, report_data, report_html FROM laptops")
+        for r_id, cust, rd_raw, r_html in cursor.fetchall():
+            rd = json.loads(rd_raw) if rd_raw else {}
+            changed = False
+            if not rd.get("currentUser"):
+                if cust and "\\" in cust:
+                    rd["currentUser"] = cust
+                    changed = True
+                elif r_html:
+                    m = re.search(r'User:\s*([^|<]+)', r_html)
+                    if m:
+                        rd["currentUser"] = m.group(1).strip()
+                        changed = True
+            if changed:
+                cursor.execute("UPDATE laptops SET report_data = ? WHERE id = ?", (json.dumps(rd), r_id))
+        conn.commit()
+    except Exception:
+        pass
     
     # Seed with existing generated report if laptops table is empty
     cursor.execute("SELECT COUNT(*) FROM laptops")
