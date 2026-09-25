@@ -319,6 +319,10 @@ def find_company_by_name(name: str):
     if not clean_name:
         return None
 
+    norm = clean_name.replace(" ", "").upper()
+    if norm in ("UNICOMTIC", "UNICOMTECHSOLUTIONS", "UNICOM"):
+        clean_name = "UNICOMTIC"
+
     sb_cfg = get_supabase_config()
     if sb_cfg[0] and sb_cfg[1]:
         try:
