@@ -1,4 +1,4 @@
-# Windows Laptop & PC Health Diagnostic & Service Fleet Hub 💻
+# 🛡️ LapGuard - Windows Laptop Fleet Health & Diagnostic Hub 💻
 
 A comprehensive client-server diagnostic and inventory management solution:
 - **Automated PowerShell Diagnostic Engine**: Inspects CPU, RAM, Dual GPU, NVMe SSD SMART, Battery wear %, Wi-Fi/Bluetooth, and Device Manager errors.

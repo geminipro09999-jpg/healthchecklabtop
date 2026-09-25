@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Laptop Fleet Health & Service Hub</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💻</text></svg>">
+    <title>LapGuard • Laptop Fleet Health &amp; Service Hub</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
     <style>
         :root {
             --bg: #0a0f1d;
@@ -23,6 +23,10 @@
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        html {
+            width: 100%;
+            overflow-x: hidden;
+        }
         body {
             background-color: var(--bg);
             color: var(--text);
@@ -30,9 +34,17 @@
             line-height: 1.5;
             padding: 16px;
             padding-bottom: 90px;
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
         }
 
-        .container { max-width: 1440px; margin: 0 auto; }
+        .container {
+            max-width: 1440px;
+            margin: 0 auto;
+            width: 100%;
+            min-width: 0;
+        }
 
         /* Header */
         header {
@@ -249,8 +261,9 @@
         /* Laptop Cards Grid */
         .laptops-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, 310px), 1fr));
             gap: 16px;
+            width: 100%;
         }
 
         .laptop-card {
@@ -262,6 +275,8 @@
             flex-direction: column;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25);
             transition: transform 0.2s ease, border-color 0.2s ease;
+            min-width: 0;
+            word-break: break-word;
         }
         .laptop-card:hover {
             border-color: rgba(56, 189, 248, 0.4);
@@ -270,7 +285,7 @@
         /* Company Badge on Card */
         .card-company-bar {
             background: rgba(30, 41, 59, 0.9);
-            padding: 6px 14px;
+            padding: 8px 14px;
             font-size: 0.75rem;
             font-weight: 700;
             color: #38bdf8;
@@ -278,6 +293,9 @@
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid var(--border);
+            gap: 8px;
+            flex-wrap: wrap;
+            min-width: 0;
         }
 
         /* Carousel Section */
@@ -357,15 +375,39 @@
         }
 
         .card-title-row {
-            display: flex; justify-content: space-between; align-items: flex-start;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
             margin-bottom: 8px;
+            gap: 8px;
+            min-width: 0;
         }
-        .card-device-name { font-size: 1.1rem; font-weight: 700; color: var(--text); }
-        .card-model { color: var(--text-muted); font-size: 0.82rem; }
+        .card-device-name {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text);
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+        .card-model {
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
         .card-serial {
-            font-family: monospace; font-size: 0.75rem; color: var(--accent);
-            background: rgba(56, 189, 248, 0.1); padding: 1px 6px; border-radius: 4px;
-            display: inline-block; margin-top: 2px;
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: var(--accent);
+            background: rgba(56, 189, 248, 0.1);
+            padding: 1px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-top: 2px;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         /* Customer Complaint Box */
@@ -376,11 +418,19 @@
             padding: 9px 11px;
             margin-bottom: 10px;
             font-size: 0.8rem;
+            word-break: break-word;
+            overflow-wrap: anywhere;
         }
 
         .complaint-header {
-            display: flex; justify-content: space-between; align-items: center;
-            font-weight: 600; margin-bottom: 3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            margin-bottom: 3px;
+            gap: 8px;
+            flex-wrap: wrap;
+            min-width: 0;
         }
 
         .status-pill {
@@ -391,8 +441,8 @@
         .status-delivered { background: rgba(56, 189, 248, 0.25); color: #38bdf8; border: 1px solid #0284c7; }
         .status-received { background: rgba(168, 85, 247, 0.25); color: #c084fc; border: 1px solid #a855f7; }
 
-        .complaint-text { color: #fde68a; margin-top: 2px; }
-        .tech-text { color: #cbd5e1; font-size: 0.75rem; margin-top: 3px; border-top: 1px dashed rgba(255, 255, 255, 0.1); padding-top: 3px; }
+        .complaint-text { color: #fde68a; margin-top: 2px; word-break: break-word; overflow-wrap: anywhere; }
+        .tech-text { color: #cbd5e1; font-size: 0.75rem; margin-top: 3px; border-top: 1px dashed rgba(255, 255, 255, 0.1); padding-top: 3px; word-break: break-word; }
 
         /* Specs Grid */
         .specs-grid {
@@ -401,23 +451,28 @@
         }
         .spec-item {
             background: var(--surface-card); padding: 5px 8px; border-radius: 6px; font-size: 0.74rem;
+            min-width: 0;
         }
         .spec-label { color: var(--text-muted); font-size: 0.66rem; text-transform: uppercase; display: block; }
-        .spec-value { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .spec-value { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 
         /* Actions */
         .card-actions {
             margin-top: auto; padding-top: 10px;
             border-top: 1px solid rgba(255, 255, 255, 0.08);
-            display: flex; gap: 6px; flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(75px, 1fr));
+            gap: 6px;
+            width: 100%;
         }
         .card-actions .btn {
-            padding: 6px 10px; font-size: 0.78rem; flex: 1; min-width: 65px;
+            padding: 7px 6px; font-size: 0.76rem; width: 100%; min-width: 0;
+            white-space: nowrap; justify-content: center;
         }
 
         /* Floating Bottom Action Bar on Mobile */
         .mobile-fab-bar {
-            position: fixed; bottom: 0; left: 0; width: 100vw;
+            position: fixed; bottom: 0; left: 0; right: 0; width: 100%; max-width: 100%;
             background: rgba(19, 29, 49, 0.95);
             backdrop-filter: blur(10px);
             border-top: 1px solid var(--border);
@@ -429,7 +484,7 @@
 
         /* Modals */
         .modal-backdrop {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            position: fixed; inset: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px);
             display: none; align-items: center; justify-content: center;
             z-index: 100; padding: 12px;
@@ -439,20 +494,27 @@
         .modal-card {
             background: var(--surface); border: 1px solid var(--border);
             border-radius: 16px; width: 100%; max-width: 680px;
-            max-height: 92vh; overflow-y: auto;
+            max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;
             box-shadow: 0 20px 30px rgba(0, 0, 0, 0.5);
+            margin: auto;
         }
 
         .modal-header {
             padding: 14px 18px; background: var(--surface-card);
             border-bottom: 1px solid var(--border);
             display: flex; justify-content: space-between; align-items: center;
-            position: sticky; top: 0; z-index: 10;
+            flex-shrink: 0;
         }
         .modal-header h2 { font-size: 1.1rem; color: var(--accent); }
-        .modal-close { background: none; border: none; color: var(--text-muted); font-size: 1.6rem; cursor: pointer; }
+        .modal-close { background: none; border: none; color: var(--text-muted); font-size: 1.6rem; cursor: pointer; line-height: 1; }
 
-        .modal-body { padding: 18px; }
+        .modal-body {
+            padding: 18px;
+            overflow-y: auto;
+            flex: 1;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+        }
 
         .form-section-title {
             font-size: 0.85rem; font-weight: 700; color: var(--accent);
@@ -533,7 +595,7 @@
 
         /* Lightbox Fullscreen */
         .lightbox-modal {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            position: fixed; inset: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.94); display: none; align-items: center; justify-content: center;
             z-index: 200;
         }
@@ -556,52 +618,112 @@
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 14px;
             padding: 14px 18px;
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            width: 100%;
+        }
+        .pagination-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
         }
         .pagination-info {
             font-size: 0.85rem;
             color: var(--text-muted);
             font-weight: 500;
         }
-        .pagination-buttons {
+        .pagination-page-size {
             display: flex;
             align-items: center;
             gap: 6px;
+        }
+        .page-size-label {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+        }
+        .page-size-chips {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .chip-size {
+            background: var(--surface-card);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 4px 9px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .chip-size:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+        .chip-size.active {
+            background: rgba(56, 189, 248, 0.2);
+            border-color: var(--accent);
+            color: var(--accent);
+            font-weight: 700;
+        }
+        .pagination-buttons {
+            display: flex;
+            align-items: center;
+            gap: 5px;
             flex-wrap: wrap;
         }
         .page-numbers-container {
             display: flex;
             align-items: center;
             gap: 4px;
+            flex-wrap: wrap;
         }
         .btn-page {
-            padding: 6px 12px;
+            padding: 6px 11px;
             font-size: 0.82rem;
-            min-width: 36px;
-            border-radius: 6px;
+            min-width: 34px;
+            height: 34px;
+            border-radius: 8px;
             background: var(--surface-card);
             border: 1px solid var(--border);
             color: var(--text);
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            transition: all 0.15s ease;
         }
-        .btn-page:hover {
+        .btn-page:hover:not(:disabled) {
             border-color: var(--accent);
             color: var(--accent);
+            background: rgba(56, 189, 248, 0.1);
         }
         .btn-page.active {
             background: var(--accent) !important;
             color: #0b1329 !important;
-            font-weight: 700;
+            font-weight: 800;
             border-color: var(--accent) !important;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
         }
         .btn-page:disabled {
-            opacity: 0.35;
+            opacity: 0.3;
             cursor: not-allowed;
             pointer-events: none;
+        }
+        .page-ellipsis {
+            color: var(--text-muted);
+            padding: 0 4px;
+            font-weight: 700;
         }
 
         /* Report list card */
@@ -881,7 +1003,12 @@
                 flex-direction: column;
                 align-items: center;
                 text-align: center;
-                gap: 10px;
+                gap: 12px;
+            }
+            .pagination-left {
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
             }
             .pagination-buttons {
                 width: 100%;
@@ -921,8 +1048,8 @@
     <!-- Header -->
     <header>
         <div class="header-title">
-            <h1>💻 Laptop Fleet Health & Service Hub</h1>
-            <p>REST API &bull; Company Multi-Tenancy &bull; 3 Photos (Screen, Lid, Tag) &bull; Google Drive Ready</p>
+            <h1><span style="color: var(--accent);">🛡️ LapGuard</span></h1>
+            <p>Enterprise Laptop Fleet Health, Hardware Diagnostics &amp; Multi-Tenant Service Hub</p>
         </div>
         <div class="header-actions">
             <!-- Auth Status Badge -->
@@ -1020,13 +1147,27 @@
         <!-- Cards loaded dynamically -->
     </div>
 
-    <!-- Pagination Controls -->
+    <!-- Pagination Controls (Numbered Page Filter & Items Per Page Selector) -->
     <div class="pagination-wrapper" id="paginationControls" style="display: none;">
-        <div class="pagination-info" id="paginationInfo">Showing 0 laptops</div>
+        <div class="pagination-left">
+            <div class="pagination-info" id="paginationInfo">Showing 0 laptops</div>
+            <div class="pagination-page-size">
+                <span class="page-size-label">Per page:</span>
+                <div class="page-size-chips" id="pageSizeChips">
+                    <button type="button" class="chip-size" data-size="6" onclick="setItemsPerPage(6)">6</button>
+                    <button type="button" class="chip-size active" data-size="9" onclick="setItemsPerPage(9)">9</button>
+                    <button type="button" class="chip-size" data-size="12" onclick="setItemsPerPage(12)">12</button>
+                    <button type="button" class="chip-size" data-size="24" onclick="setItemsPerPage(24)">24</button>
+                    <button type="button" class="chip-size" data-size="all" onclick="setItemsPerPage('all')">All</button>
+                </div>
+            </div>
+        </div>
         <div class="pagination-buttons">
-            <button type="button" class="btn btn-page" id="btnPrevPage" onclick="changePage(currentPage - 1)">◀ Prev</button>
+            <button type="button" class="btn btn-page" id="btnFirstPage" onclick="changePage(1)" title="First Page">« First</button>
+            <button type="button" class="btn btn-page" id="btnPrevPage" onclick="changePage(currentPage - 1)" title="Previous Page">‹ Prev</button>
             <div id="pageNumbers" class="page-numbers-container"></div>
-            <button type="button" class="btn btn-page" id="btnNextPage" onclick="changePage(currentPage + 1)">Next ▶</button>
+            <button type="button" class="btn btn-page" id="btnNextPage" onclick="changePage(currentPage + 1)" title="Next Page">Next ›</button>
+            <button type="button" class="btn btn-page" id="btnLastPage" onclick="changePage(totalPagesCount)" title="Last Page">Last »</button>
         </div>
     </div>
 
@@ -1464,7 +1605,8 @@ let authToken = localStorage.getItem('laptop_admin_token') || null;
 
 // Pagination state
 let currentPage = 1;
-const ITEMS_PER_PAGE = 9;
+let itemsPerPage = 9;
+let totalPagesCount = 1;
 
 // Temporary cache for photo upload modal
 let currentModalPhotos = { screen: null, top: null, base: null };
@@ -1875,7 +2017,27 @@ function formatReportDate(laptop) {
     return 'Recent';
 }
 
+function setItemsPerPage(size) {
+    if (size === 'all') {
+        itemsPerPage = 999999;
+    } else {
+        itemsPerPage = parseInt(size, 10) || 9;
+    }
+    currentPage = 1;
+    document.querySelectorAll('.chip-size').forEach(btn => {
+        const btnSize = btn.getAttribute('data-size');
+        if (size === 'all') {
+            btn.classList.toggle('active', btnSize === 'all');
+        } else {
+            btn.classList.toggle('active', btnSize == itemsPerPage);
+        }
+    });
+    renderLaptops();
+}
+
 function changePage(newPage) {
+    if (newPage < 1) newPage = 1;
+    if (newPage > totalPagesCount) newPage = totalPagesCount;
     currentPage = newPage;
     renderLaptops();
     const grid = document.getElementById('laptopsGrid');
@@ -1885,6 +2047,7 @@ function changePage(newPage) {
 }
 
 function renderPaginationUI(totalCount, totalPages, startIdx, endIdx) {
+    totalPagesCount = totalPages;
     const paginationEl = document.getElementById('paginationControls');
     if (!paginationEl) return;
     if (totalCount === 0) {
@@ -1895,8 +2058,12 @@ function renderPaginationUI(totalCount, totalPages, startIdx, endIdx) {
 
     const infoEl = document.getElementById('paginationInfo');
     if (infoEl) {
-        infoEl.textContent = `Showing ${startIdx + 1}–${endIdx} of ${totalCount} laptops (Page ${currentPage} of ${totalPages})`;
+        const actualEnd = Math.min(endIdx, totalCount);
+        infoEl.textContent = `Showing ${startIdx + 1}–${actualEnd} of ${totalCount} laptops (Page ${currentPage} of ${totalPages})`;
     }
+
+    const firstBtn = document.getElementById('btnFirstPage');
+    if (firstBtn) firstBtn.disabled = (currentPage <= 1);
 
     const prevBtn = document.getElementById('btnPrevPage');
     if (prevBtn) prevBtn.disabled = (currentPage <= 1);
@@ -1904,15 +2071,30 @@ function renderPaginationUI(totalCount, totalPages, startIdx, endIdx) {
     const nextBtn = document.getElementById('btnNextPage');
     if (nextBtn) nextBtn.disabled = (currentPage >= totalPages);
 
+    const lastBtn = document.getElementById('btnLastPage');
+    if (lastBtn) lastBtn.disabled = (currentPage >= totalPages);
+
     const pageNumbersEl = document.getElementById('pageNumbers');
     if (pageNumbersEl) {
         let pagesHtml = '';
-        for (let p = 1; p <= totalPages; p++) {
-            if (p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)) {
+        if (totalPages <= 7) {
+            for (let p = 1; p <= totalPages; p++) {
                 pagesHtml += `<button type="button" class="btn btn-page ${p === currentPage ? 'active' : ''}" onclick="changePage(${p})">${p}</button>`;
-            } else if (p === currentPage - 3 || p === currentPage + 3) {
-                pagesHtml += `<span style="color: var(--text-muted); padding: 0 4px;">...</span>`;
             }
+        } else {
+            pagesHtml += `<button type="button" class="btn btn-page ${1 === currentPage ? 'active' : ''}" onclick="changePage(1)">1</button>`;
+            if (currentPage > 3) {
+                pagesHtml += `<span class="page-ellipsis">…</span>`;
+            }
+            const startRange = Math.max(2, currentPage - 1);
+            const endRange = Math.min(totalPages - 1, currentPage + 1);
+            for (let p = startRange; p <= endRange; p++) {
+                pagesHtml += `<button type="button" class="btn btn-page ${p === currentPage ? 'active' : ''}" onclick="changePage(${p})">${p}</button>`;
+            }
+            if (currentPage < totalPages - 2) {
+                pagesHtml += `<span class="page-ellipsis">…</span>`;
+            }
+            pagesHtml += `<button type="button" class="btn btn-page ${totalPages === currentPage ? 'active' : ''}" onclick="changePage(${totalPages})">${totalPages}</button>`;
         }
         pageNumbersEl.innerHTML = pagesHtml;
     }
@@ -2299,12 +2481,13 @@ function renderLaptops() {
 
     // Pagination calculations
     const totalCount = filtered.length;
-    const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE) || 1;
+    const effectivePerPage = (itemsPerPage === 999999) ? (totalCount || 1) : itemsPerPage;
+    const totalPages = Math.ceil(totalCount / effectivePerPage) || 1;
     if (currentPage > totalPages) currentPage = totalPages;
     if (currentPage < 1) currentPage = 1;
 
-    const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
-    const endIdx = Math.min(startIdx + ITEMS_PER_PAGE, totalCount);
+    const startIdx = (currentPage - 1) * effectivePerPage;
+    const endIdx = Math.min(startIdx + effectivePerPage, totalCount);
     const pageItems = filtered.slice(startIdx, endIdx);
 
     renderPaginationUI(totalCount, totalPages, startIdx, endIdx);

@@ -1,5 +1,5 @@
 @echo off
-title Laptop Fleet Health Dashboard
+title LapGuard - Laptop Fleet Health Dashboard
 cd /d "%~dp0"
 
 echo [*] Checking local dashboard server...
