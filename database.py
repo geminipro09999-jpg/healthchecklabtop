@@ -801,7 +801,53 @@ def update_laptop(laptop_id: str, data: dict):
                 rd = data["report_data"]
                 sb_update["report_data"] = json.loads(rd) if isinstance(rd, str) else rd
             sb_update["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            supabase_request("PATCH", f"laptops?id=eq.{real_id}", json_data=sb_update)
+            patch_res = supabase_request("PATCH", f"laptops?id=eq.{real_id}", json_data=sb_update, prefer="return=representation")
+            # If 0 rows were updated in Supabase (record was only in local SQLite), insert it fully into Supabase!
+            if not patch_res or (isinstance(patch_res, list) and len(patch_res) == 0):
+                full_lap = dict(target) if target else {}
+                full_lap.update(data)
+                full_lap["id"] = real_id
+                company = full_lap.get("company_name", "UNICOMTIC") or "UNICOMTIC"
+                supabase_request("POST", "companies", params={"on_conflict": "name"}, json_data={"name": company}, prefer="resolution=merge-duplicates")
+                rd = full_lap.get("report_data", {})
+                if isinstance(rd, str):
+                    try:
+                        rd = json.loads(rd)
+                    except Exception:
+                        rd = {}
+                c_list = full_lap.get("complaints", [])
+                if not isinstance(c_list, list):
+                    c_list = [str(c_list)]
+                sb_row = {
+                    "id": real_id,
+                    "company_name": company,
+                    "customer_name": full_lap.get("customer_name", ""),
+                    "customer_phone": full_lap.get("customer_phone", ""),
+                    "device_name": full_lap.get("device_name", "Laptop"),
+                    "model": full_lap.get("model", ""),
+                    "serial_number": full_lap.get("serial_number", ""),
+                    "cpu": full_lap.get("cpu", ""),
+                    "ram": full_lap.get("ram", ""),
+                    "storage": full_lap.get("storage", ""),
+                    "gpu": full_lap.get("gpu", ""),
+                    "battery_health": safe_battery_int(full_lap.get("battery_health", 100)),
+                    "overall_status": full_lap.get("overall_status", "Healthy"),
+                    "service_status": full_lap.get("service_status", "Received"),
+                    "complaints": c_list,
+                    "photo_screen": full_lap.get("photo_screen", ""),
+                    "photo_top": full_lap.get("photo_top", ""),
+                    "photo_base": full_lap.get("photo_base", ""),
+                    "report_filename": full_lap.get("report_filename", ""),
+                    "report_data": rd,
+                    "report_html": full_lap.get("report_html", ""),
+                    "battery_report_filename": full_lap.get("battery_report_filename", ""),
+                    "battery_report_html": full_lap.get("battery_report_html", ""),
+                    "battery_cycle_count": str(full_lap.get("battery_cycle_count", "")),
+                    "gdrive_folder_url": full_lap.get("gdrive_folder_url", ""),
+                    "created_at": full_lap.get("created_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                supabase_request("POST", "laptops", params={"on_conflict": "id"}, json_data=sb_row, prefer="resolution=merge-duplicates")
         except Exception as e:
             print(f"Notice: Supabase update_laptop sync: {e}")
 
