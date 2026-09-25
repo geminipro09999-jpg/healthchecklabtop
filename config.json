@@ -2,6 +2,8 @@
   "server_port": 8080,
   "admin_salt": "970822925df90d7897feb0dec7976197",
   "admin_password_hash": "bf1683a9483b52b3f5f44b74affe52d3daa675923d6f62fe30f1da86ae89e94a",
+  "super_admin_salt": "ad47dd94e4acb1eeee97917841d91b85",
+  "super_admin_password_hash": "e07cff802fba32c61630a874bb49bab19c5f7dd375b3fbcc59a13b7ce6f1c41e",
   "session_secret": "cae1b803daaaab6ce3720f3cced8e22e1a93778f3b0ffc971e87550acec51d5d",
   "session_duration_hours": 24,
   "gdrive": {

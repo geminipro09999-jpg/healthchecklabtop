@@ -38,6 +38,8 @@ def verify_password(password: str, salt_hex: str, hash_hex: str) -> bool:
 
 DEFAULT_ADMIN_SALT = "970822925df90d7897feb0dec7976197"
 DEFAULT_ADMIN_HASH = "bf1683a9483b52b3f5f44b74affe52d3daa675923d6f62fe30f1da86ae89e94a"
+DEFAULT_SUPER_ADMIN_SALT = "ad47dd94e4acb1eeee97917841d91b85"
+DEFAULT_SUPER_ADMIN_HASH = "e07cff802fba32c61630a874bb49bab19c5f7dd375b3fbcc59a13b7ce6f1c41e"
 
 def load_config() -> dict:
     """Loads config.json. If it doesn't exist, initializes it with default hashed admin password."""
@@ -46,6 +48,8 @@ def load_config() -> dict:
             "server_port": 8080,
             "admin_salt": DEFAULT_ADMIN_SALT,
             "admin_password_hash": DEFAULT_ADMIN_HASH,
+            "super_admin_salt": DEFAULT_SUPER_ADMIN_SALT,
+            "super_admin_password_hash": DEFAULT_SUPER_ADMIN_HASH,
             "session_secret": DEFAULT_SESSION_SECRET,
             "session_duration_hours": 24,
             "gdrive": {
@@ -64,12 +68,17 @@ def load_config() -> dict:
             if not cfg.get("admin_password_hash"):
                 cfg["admin_salt"] = DEFAULT_ADMIN_SALT
                 cfg["admin_password_hash"] = DEFAULT_ADMIN_HASH
+            if not cfg.get("super_admin_password_hash"):
+                cfg["super_admin_salt"] = DEFAULT_SUPER_ADMIN_SALT
+                cfg["super_admin_password_hash"] = DEFAULT_SUPER_ADMIN_HASH
             return cfg
     except Exception:
         return {
             "server_port": 8080,
             "admin_salt": DEFAULT_ADMIN_SALT,
             "admin_password_hash": DEFAULT_ADMIN_HASH,
+            "super_admin_salt": DEFAULT_SUPER_ADMIN_SALT,
+            "super_admin_password_hash": DEFAULT_SUPER_ADMIN_HASH,
             "session_secret": DEFAULT_SESSION_SECRET,
             "session_duration_hours": 24,
             "gdrive": {"enabled": False, "service_account_json": "service_account.json", "parent_folder_id": ""}
@@ -93,46 +102,73 @@ def get_session_secret() -> bytes:
     except Exception:
         return DEFAULT_SESSION_SECRET.encode("utf-8")
 
-def create_admin_session() -> str:
-    """Generates a cryptographically signed permanent HMAC token valid across all serverless lambda instances."""
-    exp = int(time.time()) + 86400 * 365 * 100  # 100 Years (Lifelong permanent validity)
-    payload = f"admin:{exp}:{secrets.token_hex(8)}"
+def create_admin_session(role: str = "admin") -> str:
+    """Generates a cryptographically signed permanent HMAC token with encoded user role."""
+    exp = int(time.time()) + 86400 * 365 * 100  # 100 Years
+    payload = f"{role}:{exp}:{secrets.token_hex(8)}"
     payload_b64 = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("utf-8").rstrip("=")
     key = get_session_secret()
     sig = hmac.new(key, payload_b64.encode("utf-8"), hashlib.sha256).hexdigest()
     token = f"{payload_b64}.{sig}"
     ACTIVE_SESSIONS[token] = {
         "created_at": time.time(),
-        "role": "admin"
+        "role": role
     }
     return token
 
-def validate_token(token: str) -> bool:
-    """Returns True if token exists in memory or has valid HMAC signature (Lifelong validity)."""
+def authenticate(password: str) -> tuple[bool, str, str]:
+    """Authenticates password against Super Admin (Admin_TIC@#) or Admin (admin123)."""
+    cfg = load_config()
+    # 1. Check Super Admin
+    s_salt = cfg.get("super_admin_salt") or DEFAULT_SUPER_ADMIN_SALT
+    s_hash = cfg.get("super_admin_password_hash") or DEFAULT_SUPER_ADMIN_HASH
+    if verify_password(password, s_salt, s_hash):
+        token = create_admin_session(role="superadmin")
+        return True, "superadmin", token
+
+    # 2. Check Admin / Technician
+    a_salt = cfg.get("admin_salt") or DEFAULT_ADMIN_SALT
+    a_hash = cfg.get("admin_password_hash") or DEFAULT_ADMIN_HASH
+    if verify_password(password, a_salt, a_hash):
+        token = create_admin_session(role="admin")
+        return True, "admin", token
+
+    return False, None, None
+
+def get_token_role(token: str) -> str | None:
+    """Returns 'superadmin' or 'admin' if token is valid, else None."""
     if not token:
-        return False
+        return None
     if token in ACTIVE_SESSIONS:
-        return True
+        return ACTIVE_SESSIONS[token].get("role", "admin")
 
     try:
         parts = token.split(".")
         if len(parts) != 2:
-            return False
+            return None
         payload_b64, sig = parts
         key = get_session_secret()
         expected_sig = hmac.new(key, payload_b64.encode("utf-8"), hashlib.sha256).hexdigest()
         if not secrets.compare_digest(sig, expected_sig):
-            return False
+            return None
 
         padding = "=" * (4 - len(payload_b64) % 4) if len(payload_b64) % 4 else ""
         payload = base64.urlsafe_b64decode(payload_b64 + padding).decode("utf-8")
         role, exp_str, _ = payload.split(":", 2)
-        if role == "admin" and int(exp_str) > time.time():
-            ACTIVE_SESSIONS[token] = {"created_at": time.time(), "role": "admin"}
-            return True
-        return False
+        if role in ("admin", "superadmin") and int(exp_str) > time.time():
+            ACTIVE_SESSIONS[token] = {"created_at": time.time(), "role": role}
+            return role
+        return None
     except Exception:
-        return False
+        return None
+
+def validate_token(token: str) -> bool:
+    """Returns True if token exists in memory or has valid HMAC signature."""
+    return get_token_role(token) is not None
+
+def is_super_admin(token: str) -> bool:
+    """Returns True ONLY if token belongs to a Super Admin."""
+    return get_token_role(token) == "superadmin"
 
 def revoke_token(token: str):
     if token in ACTIVE_SESSIONS:

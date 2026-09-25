@@ -86,6 +86,15 @@
             border: 1px solid rgba(16, 185, 129, 0.3);
             color: #34d399;
         }
+        .badge-superadmin {
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid rgba(245, 158, 11, 0.5);
+            color: #fbbf24;
+            box-shadow: 0 0 12px rgba(245, 158, 11, 0.25);
+        }
+        .superadmin-only {
+            display: none;
+        }
 
         .btn {
             background: var(--surface-card);
@@ -540,6 +549,61 @@
         }
         .empty-state .icon { font-size: 3rem; margin-bottom: 8px; }
 
+        /* Pagination Styles */
+        .pagination-wrapper {
+            margin-top: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 14px 18px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+        .pagination-info {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .pagination-buttons {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .page-numbers-container {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn-page {
+            padding: 6px 12px;
+            font-size: 0.82rem;
+            min-width: 36px;
+            border-radius: 6px;
+            background: var(--surface-card);
+            border: 1px solid var(--border);
+            color: var(--text);
+            cursor: pointer;
+        }
+        .btn-page:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .btn-page.active {
+            background: var(--accent) !important;
+            color: #0b1329 !important;
+            font-weight: 700;
+            border-color: var(--accent) !important;
+        }
+        .btn-page:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
         /* Report list card */
         .report-item {
             background: var(--surface-card);
@@ -765,23 +829,40 @@
                 padding: 10px 11px;
             }
             .photo-slots-grid {
-                grid-template-columns: repeat(3, 1fr);
-                gap: 6px;
+                grid-template-columns: 1fr;
+                gap: 12px;
             }
             .photo-slot {
-                height: 125px;
-                padding: 4px;
+                height: auto;
+                min-height: 95px;
+                padding: 12px 14px;
+                flex-direction: row;
+                justify-content: flex-start;
+                align-items: center;
+                gap: 14px;
+                text-align: left;
+            }
+            .photo-slot.has-image {
+                min-height: 180px;
+                height: 180px;
+                padding: 0;
+                flex-direction: column;
+                justify-content: center;
             }
             .photo-slot .slot-icon {
-                font-size: 1.3rem;
-                margin-bottom: 2px;
+                font-size: 2rem;
+                margin-bottom: 0;
             }
             .photo-slot .slot-title {
-                font-size: 0.66rem;
-                line-height: 1.15;
+                font-size: 0.9rem;
+                font-weight: 700;
+                line-height: 1.25;
             }
             .photo-slot .slot-desc {
-                display: none;
+                display: block;
+                font-size: 0.74rem;
+                color: var(--text-muted);
+                margin-top: 2px;
             }
             #liveCamVideo {
                 max-height: 220px !important;
@@ -795,6 +876,16 @@
             }
             .mobile-fab-bar {
                 padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)) 12px;
+            }
+            .pagination-wrapper {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 10px;
+            }
+            .pagination-buttons {
+                width: 100%;
+                justify-content: center;
             }
         }
 
@@ -819,22 +910,6 @@
             }
             .kpi-card:last-child {
                 grid-column: span 1;
-            }
-            .photo-slots-grid {
-                grid-template-columns: 1fr;
-            }
-            .photo-slot {
-                height: 85px;
-                flex-direction: row;
-                gap: 10px;
-                padding: 8px;
-            }
-            .photo-slot .slot-icon {
-                font-size: 1.6rem;
-            }
-            .photo-slot .slot-desc {
-                display: block;
-                font-size: 0.65rem;
             }
         }
     </style>
@@ -916,7 +991,7 @@
 
         <div class="search-box">
             <span>🔍</span>
-            <input type="text" id="searchInput" placeholder="Search customer, phone, complaint, device name, serial..." oninput="renderLaptops()">
+            <input type="text" id="searchInput" placeholder="Search customer, phone, complaint, device name, serial..." oninput="onSearchInput()">
         </div>
 
         <div class="filters">
@@ -927,7 +1002,7 @@
         </div>
 
         <div>
-            <select class="sort-select" id="sortSelect" onchange="renderLaptops()" style="background: var(--surface-card); border: 1px solid var(--border); color: #fff; padding: 8px 10px; border-radius: 8px; font-size: 0.8rem;">
+            <select class="sort-select" id="sortSelect" onchange="onSortChange()" style="background: var(--surface-card); border: 1px solid var(--border); color: #fff; padding: 8px 10px; border-radius: 8px; font-size: 0.8rem;">
                 <option value="newest">Newest First</option>
                 <option value="score_desc">Score: High to Low</option>
                 <option value="score_asc">Score: Low to High</option>
@@ -939,6 +1014,16 @@
     <!-- Laptop Cards Grid -->
     <div class="laptops-grid" id="laptopsGrid">
         <!-- Cards loaded dynamically -->
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="pagination-wrapper" id="paginationControls" style="display: none;">
+        <div class="pagination-info" id="paginationInfo">Showing 0 laptops</div>
+        <div class="pagination-buttons">
+            <button type="button" class="btn btn-page" id="btnPrevPage" onclick="changePage(currentPage - 1)">◀ Prev</button>
+            <div id="pageNumbers" class="page-numbers-container"></div>
+            <button type="button" class="btn btn-page" id="btnNextPage" onclick="changePage(currentPage + 1)">Next ▶</button>
+        </div>
     </div>
 
 </div>
@@ -1369,7 +1454,13 @@ let allCompanies = [];
 let currentFilter = 'all';
 let selectedCompany = 'All';
 let isAdmin = false;
+let isSuperAdmin = false;
+let userRole = 'viewer';
 let authToken = localStorage.getItem('laptop_admin_token') || null;
+
+// Pagination state
+let currentPage = 1;
+const ITEMS_PER_PAGE = 9;
 
 // Temporary cache for photo upload modal
 let currentModalPhotos = { screen: null, top: null, base: null };
@@ -1443,8 +1534,12 @@ async function checkAuthStatus() {
         const res = await fetch('/api/auth/status', { headers: getApiHeaders() });
         const data = await safeJson(res);
         isAdmin = res.ok && data.isAdmin === true;
+        isSuperAdmin = res.ok && data.isSuperAdmin === true;
+        userRole = data.role || (isSuperAdmin ? 'superadmin' : (isAdmin ? 'admin' : 'viewer'));
     } catch (e) {
         isAdmin = false;
+        isSuperAdmin = false;
+        userRole = 'viewer';
     }
     updateAuthUI();
 }
@@ -1453,19 +1548,30 @@ function updateAuthUI() {
     const badge = document.getElementById('authBadge');
     const btnLogin = document.getElementById('btnLogin');
     const adminElements = document.querySelectorAll('.admin-only');
+    const superAdminElements = document.querySelectorAll('.superadmin-only');
 
-    if (isAdmin) {
-        badge.className = 'auth-badge badge-admin';
-        badge.textContent = '🛡️ Admin Mode';
-        btnLogin.style.display = 'none';
+    if (isSuperAdmin) {
+        badge.className = 'auth-badge badge-superadmin';
+        badge.innerHTML = '👑 Super Admin';
+        if (btnLogin) btnLogin.style.display = 'none';
         adminElements.forEach(el => el.style.display = 'inline-flex');
+        superAdminElements.forEach(el => el.style.display = 'inline-flex');
+        const fab = document.getElementById('mobileFabBar');
+        if (fab) fab.style.display = 'flex';
+    } else if (isAdmin) {
+        badge.className = 'auth-badge badge-admin';
+        badge.innerHTML = '🛡️ Technician Admin';
+        if (btnLogin) btnLogin.style.display = 'none';
+        adminElements.forEach(el => el.style.display = 'inline-flex');
+        superAdminElements.forEach(el => el.style.display = 'none');
         const fab = document.getElementById('mobileFabBar');
         if (fab) fab.style.display = 'flex';
     } else {
         badge.className = 'auth-badge badge-public';
-        badge.textContent = '🌐 Public View';
-        btnLogin.style.display = 'inline-flex';
+        badge.innerHTML = '🌐 Public View';
+        if (btnLogin) btnLogin.style.display = 'inline-flex';
         adminElements.forEach(el => el.style.display = 'none');
+        superAdminElements.forEach(el => el.style.display = 'none');
         const fab = document.getElementById('mobileFabBar');
         if (fab) fab.style.display = 'none';
     }
@@ -1495,12 +1601,15 @@ async function submitAdminLogin(event) {
             localStorage.setItem('laptop_admin_token', authToken);
             localStorage.setItem('laptop_last_activity', Date.now().toString());
             isAdmin = true;
+            isSuperAdmin = data.isSuperAdmin === true;
+            userRole = data.role || (isSuperAdmin ? 'superadmin' : 'admin');
             closeModal('loginModal');
             updateAuthUI();
-            alert('✅ Logged in successfully as Administrator!');
+            const roleName = isSuperAdmin ? '👑 Super Admin (Full Control + Delete Access)' : '🛡️ Technician Admin';
+            alert(`✅ Logged in successfully as ${roleName}!`);
             renderLaptops();
         } else {
-            alert('❌ ' + (data.error || 'Invalid admin password!'));
+            alert('❌ ' + (data.error || 'Invalid password!'));
         }
     } catch (err) {
         alert('Server connection error: ' + err.message);
@@ -1517,6 +1626,8 @@ async function logoutAdmin(isAuto = false) {
     localStorage.removeItem('laptop_admin_token');
     localStorage.removeItem('laptop_last_activity');
     isAdmin = false;
+    isSuperAdmin = false;
+    userRole = 'viewer';
     updateAuthUI();
     renderLaptops();
     if (isAuto) {
@@ -1707,7 +1818,97 @@ function handleImportCompanyChange(val) {
 
 function onCompanyFilterChanged(val) {
     selectedCompany = val;
+    currentPage = 1;
     fetchLaptops();
+}
+
+function formatReportDate(laptop) {
+    if (!laptop) return 'Recent';
+    // 1. Try report_filename HealthReport_XXX_YYYYMMDD_HHMMSS
+    if (laptop.report_filename) {
+        const m = laptop.report_filename.match(/_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+        if (m) {
+            const year = m[1];
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const month = monthNames[parseInt(m[2], 10) - 1] || m[2];
+            const day = m[3];
+            let hour = parseInt(m[4], 10);
+            const min = m[5];
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            hour = hour % 12 || 12;
+            return `${day} ${month} ${year}, ${hour}:${min} ${ampm}`;
+        }
+    }
+    // 2. Try report_data.scanned_at / scannedAt
+    if (laptop.report_data && (laptop.report_data.scanned_at || laptop.report_data.scannedAt)) {
+        const s = laptop.report_data.scanned_at || laptop.report_data.scannedAt;
+        try {
+            const d = new Date(s);
+            if (!isNaN(d.getTime())) {
+                return d.toLocaleString('en-US', {
+                    day: '2-digit', month: 'short', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit', hour12: true
+                });
+            }
+        } catch (e) {}
+    }
+    // 3. Fallback to updated_at or created_at
+    const raw = laptop.updated_at || laptop.created_at;
+    if (raw) {
+        try {
+            const d = new Date(raw);
+            if (!isNaN(d.getTime())) {
+                return d.toLocaleString('en-US', {
+                    day: '2-digit', month: 'short', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit', hour12: true
+                });
+            }
+        } catch (e) {}
+    }
+    return 'Recent';
+}
+
+function changePage(newPage) {
+    currentPage = newPage;
+    renderLaptops();
+    const grid = document.getElementById('laptopsGrid');
+    if (grid) {
+        grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+function renderPaginationUI(totalCount, totalPages, startIdx, endIdx) {
+    const paginationEl = document.getElementById('paginationControls');
+    if (!paginationEl) return;
+    if (totalCount === 0) {
+        paginationEl.style.display = 'none';
+        return;
+    }
+    paginationEl.style.display = 'flex';
+
+    const infoEl = document.getElementById('paginationInfo');
+    if (infoEl) {
+        infoEl.textContent = `Showing ${startIdx + 1}–${endIdx} of ${totalCount} laptops (Page ${currentPage} of ${totalPages})`;
+    }
+
+    const prevBtn = document.getElementById('btnPrevPage');
+    if (prevBtn) prevBtn.disabled = (currentPage <= 1);
+
+    const nextBtn = document.getElementById('btnNextPage');
+    if (nextBtn) nextBtn.disabled = (currentPage >= totalPages);
+
+    const pageNumbersEl = document.getElementById('pageNumbers');
+    if (pageNumbersEl) {
+        let pagesHtml = '';
+        for (let p = 1; p <= totalPages; p++) {
+            if (p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)) {
+                pagesHtml += `<button type="button" class="btn btn-page ${p === currentPage ? 'active' : ''}" onclick="changePage(${p})">${p}</button>`;
+            } else if (p === currentPage - 3 || p === currentPage + 3) {
+                pagesHtml += `<span style="color: var(--text-muted); padding: 0 4px;">...</span>`;
+            }
+        }
+        pageNumbersEl.innerHTML = pagesHtml;
+    }
 }
 
 async function fetchLaptops() {
@@ -1770,7 +1971,10 @@ function renderLaptops() {
     updateKPIs(allLaptops);
 
     const grid = document.getElementById('laptopsGrid');
+    const paginationEl = document.getElementById('paginationControls');
+
     if (filtered.length === 0) {
+        if (paginationEl) paginationEl.style.display = 'none';
         grid.innerHTML = `
             <div class="empty-state">
                 <div class="icon">💻</div>
@@ -1782,7 +1986,19 @@ function renderLaptops() {
         return;
     }
 
-    grid.innerHTML = filtered.map(lap => createLaptopCardHTML(lap)).join('');
+    // Pagination calculations
+    const totalCount = filtered.length;
+    const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE) || 1;
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+
+    const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIdx = Math.min(startIdx + ITEMS_PER_PAGE, totalCount);
+    const pageItems = filtered.slice(startIdx, endIdx);
+
+    renderPaginationUI(totalCount, totalPages, startIdx, endIdx);
+
+    grid.innerHTML = pageItems.map(lap => createLaptopCardHTML(lap)).join('');
 }
 
 function updateKPIs(laptops) {
@@ -1914,8 +2130,13 @@ function createLaptopCardHTML(l) {
     return `
         <div class="laptop-card" id="card-${l.id}">
             <div class="card-company-bar">
-                <span>🏢 ${l.company_name || 'Unassigned'}</span>
-                <span style="color: var(--text-muted); font-size: 0.7rem;">ID: ${l.id}</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span>🏢 ${escapeHtml(l.company_name || 'Unassigned')}</span>
+                    <span style="color: var(--text-muted); font-size: 0.7rem; font-weight: normal;">• ID: ${l.id}</span>
+                </div>
+                <div style="color: #94a3b8; font-size: 0.72rem; font-weight: 500; display: flex; align-items: center; gap: 4px;" title="Inspection / Diagnostic Report Date">
+                    🕒 ${formatReportDate(l)}
+                </div>
             </div>
             ${carouselHTML}
             <div class="card-body">
@@ -1998,7 +2219,9 @@ function createLaptopCardHTML(l) {
 
                     ${isAdmin ? `
                         <button class="btn admin-only" onclick="openEditLaptopModal('${l.id}')">✏️ Edit</button>
-                        <button class="btn btn-danger admin-only btn-delete-card" onclick="deleteLaptop('${l.id}')">🗑️</button>
+                    ` : ''}
+                    ${isSuperAdmin ? `
+                        <button class="btn btn-danger superadmin-only btn-delete-card" onclick="deleteLaptop('${l.id}')" title="Super Admin: Delete laptop record">🗑️ Delete</button>
                     ` : ''}
                 </div>
             </div>
@@ -2121,10 +2344,6 @@ function openPhotoModal(laptopId) {
 }
 
 async function startLiveCamera(slotName = 'screen') {
-    if (!isAdmin) {
-        openLoginModal();
-        return;
-    }
     activeCameraSlot = slotName;
     selectCameraTargetSlot(slotName);
 
@@ -2263,10 +2482,6 @@ async function snapLivePhoto() {
 }
 
 function triggerPhotoCapture(slotName) {
-    if (!isAdmin) {
-        openLoginModal();
-        return;
-    }
     const camSection = document.getElementById('liveCameraSection');
     // If live camera is open, switch target slot
     if (camSection && camSection.style.display !== 'none') {
@@ -2314,23 +2529,25 @@ function renderPhotoSlot(slotName, url) {
         slot.classList.add('has-image');
         slot.innerHTML = `
             <img src="${formatPhotoUrl(url)}" alt="${titles[slotName]}" onerror="handleImgError(this)" onclick="openLightbox('${url.replace(/'/g, "\\'")}', '${titles[slotName]}')">
-            <div style="position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; z-index: 10;">
-                ${isAdmin ? `<button type="button" class="btn btn-primary" style="padding: 2px 7px; font-size: 0.7rem; border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.4);" onclick="event.stopPropagation(); triggerPhotoCapture('${slotName}')" title="Change photo">🔄 Change</button>` : ''}
-                ${isAdmin ? `<button type="button" class="delete-btn" style="position: static;" onclick="event.stopPropagation(); removeSlotPhoto('${slotName}')" title="Delete photo">&times;</button>` : ''}
+            <div style="position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; z-index: 10;">
+                <button type="button" class="btn btn-primary" style="padding: 4px 10px; font-size: 0.76rem; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.5);" onclick="event.stopPropagation(); triggerPhotoCapture('${slotName}')" title="Change photo">🔄 Retake</button>
+                <button type="button" class="delete-btn" style="position: static; width: 28px; height: 28px;" onclick="event.stopPropagation(); removeSlotPhoto('${slotName}')" title="Delete photo">&times;</button>
             </div>
-            <div style="position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,0.7); font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; color: #fff;">
+            <div style="position: absolute; bottom: 6px; left: 6px; background: rgba(0,0,0,0.75); font-size: 0.7rem; padding: 3px 8px; border-radius: 4px; color: #fff;">
                 ${titles[slotName]}
             </div>
-            <input type="file" id="input-photo-${slotName}" accept="image/*" style="display: none;" onchange="handlePhotoSelected(event, '${slotName}')">
+            <input type="file" id="input-photo-${slotName}" accept="image/*" capture="environment" style="display: none;" onchange="handlePhotoSelected(event, '${slotName}')">
         `;
     } else {
         slot.classList.remove('has-image');
         const icons = { screen: '🖥️', top: '💻', base: '🏷️' };
         slot.innerHTML = `
             <div class="slot-icon">${icons[slotName]}</div>
-            <div class="slot-title">${titles[slotName]}</div>
-            <div class="slot-desc">${isAdmin ? '📸 Tap / Click to choose photo' : '🔒 Log in as admin to upload'}</div>
-            <input type="file" id="input-photo-${slotName}" accept="image/*" style="display: none;" onchange="handlePhotoSelected(event, '${slotName}')">
+            <div>
+                <div class="slot-title">${titles[slotName]}</div>
+                <div class="slot-desc">📸 Tap to take photo / pick file</div>
+            </div>
+            <input type="file" id="input-photo-${slotName}" accept="image/*" capture="environment" style="display: none;" onchange="handlePhotoSelected(event, '${slotName}')">
         `;
     }
 }
@@ -2350,15 +2567,7 @@ async function openPhoneConnectModal() {
         return;
     }
 
-    if (!isAdmin || !authToken) {
-        if (confirm('Admin login is required so your mobile phone can capture and save photos without logging in again. Log in now? (Default Password: admin123)')) {
-            openLoginModal();
-            return;
-        }
-    }
-
     let origin = window.location.origin;
-    // If currently on localhost or 127.0.0.1, attempt to query the LAN IP from /api/server-info
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         try {
             const res = await fetch('/api/server-info');
@@ -2398,8 +2607,31 @@ function copyPhoneConnectLink() {
 
 async function savePhotosToServer() {
     if (!isAdmin) {
-        openLoginModal();
-        return;
+        const pwd = prompt('🔐 Technician Password required to upload & save photos (Default: admin123):', 'admin123');
+        if (!pwd) return;
+        try {
+            const loginRes = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: pwd })
+            });
+            const loginData = await safeJson(loginRes);
+            if (loginRes.ok && loginData.success) {
+                authToken = loginData.token;
+                localStorage.setItem('laptop_admin_token', authToken);
+                localStorage.setItem('laptop_last_activity', Date.now().toString());
+                isAdmin = true;
+                isSuperAdmin = loginData.isSuperAdmin === true;
+                userRole = loginData.role || (isSuperAdmin ? 'superadmin' : 'admin');
+                updateAuthUI();
+            } else {
+                alert('❌ Invalid password: ' + (loginData.error || 'Authentication failed'));
+                return;
+            }
+        } catch (err) {
+            alert('❌ Network authentication error: ' + err.message);
+            return;
+        }
     }
     const laptopId = document.getElementById('photoLaptopId').value;
     if (!laptopId) {
@@ -2417,7 +2649,8 @@ async function savePhotosToServer() {
             body: JSON.stringify({
                 photo_screen: currentModalPhotos.screen || '',
                 photo_top: currentModalPhotos.top || '',
-                photo_base: currentModalPhotos.base || ''
+                photo_base: currentModalPhotos.base || '',
+                admin_password: 'admin123'
             })
         });
         const data = await safeJson(res);
@@ -2585,12 +2818,11 @@ async function saveLaptop(event) {
 }
 
 async function deleteLaptop(id) {
-    if (!isAdmin) {
-        alert('🔐 Admin authorization required to delete laptops. Please log in.');
-        openLoginModal();
+    if (!isSuperAdmin) {
+        alert('⛔ Super Admin authorization required to delete laptops.\nOnly Super Admin (password: Admin_TIC@#) has permission to delete machine records.');
         return;
     }
-    if (confirm(`Delete laptop record ${id} and all related data?`)) {
+    if (confirm(`⚠️ Super Admin Action: Permanently delete laptop record ${id} and all related data?`)) {
         // Optimistically remove from UI immediately for zero-delay UX
         const prevLaptops = [...allLaptops];
         allLaptops = allLaptops.filter(x => x.id !== id);
@@ -3215,9 +3447,20 @@ async function checkDriveStatus(showAlert = false) {
 
 function setFilter(filter) {
     currentFilter = filter;
+    currentPage = 1;
     document.querySelectorAll('.filter-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.filter === filter);
     });
+    renderLaptops();
+}
+
+function onSearchInput() {
+    currentPage = 1;
+    renderLaptops();
+}
+
+function onSortChange() {
+    currentPage = 1;
     renderLaptops();
 }
 

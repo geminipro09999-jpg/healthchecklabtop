@@ -257,9 +257,17 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
             return qs["token"][0]
         return None
 
+    def get_user_role(self):
+        token = self.get_token()
+        return auth.get_token_role(token)
+
     def is_admin(self):
         token = self.get_token()
         return auth.validate_token(token)
+
+    def is_super_admin(self):
+        token = self.get_token()
+        return auth.is_super_admin(token)
 
     def read_json_body(self):
         try:
@@ -306,8 +314,12 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
         # REST API endpoints
         if path == "/api/auth/status":
             token = self.get_token()
-            is_valid = auth.validate_token(token)
-            return self.send_json({"isAdmin": is_valid, "role": "admin" if is_valid else "viewer"})
+            role = auth.get_token_role(token)
+            return self.send_json({
+                "isAdmin": role is not None,
+                "role": role or "viewer",
+                "isSuperAdmin": (role == "superadmin")
+            })
 
         if path == "/api/server-info":
             port = 8080
@@ -476,24 +488,21 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         path, qs = self.get_path_and_query()
 
-        # 1. Auth: Admin Login (Hashed verification)
+        # 1. Auth: Login (Super Admin or Technician)
         if path == "/api/auth/login":
             body = self.read_json_body()
             password = body.get("password", "")
-            cfg = auth.load_config()
-            salt = cfg.get("admin_salt", "")
-            expected_hash = cfg.get("admin_password_hash", "")
-
-            if auth.verify_password(password, salt, expected_hash):
-                token = auth.create_admin_session()
+            ok, role, token = auth.authenticate(password)
+            if ok:
                 return self.send_json({
                     "success": True,
                     "token": token,
-                    "role": "admin",
-                    "message": "Admin authenticated successfully"
+                    "role": role,
+                    "isSuperAdmin": (role == "superadmin"),
+                    "message": "Super Admin authenticated" if role == "superadmin" else "Technician authenticated"
                 })
             else:
-                return self.send_json({"success": False, "error": "Invalid admin password"}, 401)
+                return self.send_json({"success": False, "error": "Invalid password"}, 401)
 
         # 2. Auth: Logout
         if path == "/api/auth/logout":
@@ -544,10 +553,16 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
             laptop = database.create_laptop(body)
             return self.send_json({"success": True, "laptop": laptop}, 201)
 
-        # 6. Laptops: Upload Photos (Admin only)
+        # 6. Laptops: Upload Photos
         if path.startswith("/api/laptops/") and path.endswith("/photos"):
-            if not self.is_admin():
-                return self.send_json({"error": "Admin authorization required to upload photos"}, 401)
+            body = self.read_json_body()
+            is_authed = self.is_admin()
+            if not is_authed:
+                pwd = body.get("admin_password") or body.get("password")
+                if pwd and auth.authenticate(pwd)[0]:
+                    is_authed = True
+            if not is_authed:
+                return self.send_json({"error": "Technician authorization required to upload photos"}, 401)
             parts = path.strip("/").split("/")
             laptop_id = parts[2]
             laptop = database.get_laptop(laptop_id)
@@ -1196,8 +1211,10 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
         path, qs = self.get_path_and_query()
 
         if path.startswith("/api/laptops/"):
-            if not self.is_admin():
-                return self.send_json({"error": "Admin authorization required to delete laptops"}, 401)
+            if not self.is_super_admin():
+                return self.send_json({
+                    "error": "Access Denied: Only Super Admin (Admin_TIC@#) can delete laptop records. Technicians do not have delete permissions."
+                }, 403)
             laptop_id = path.replace("/api/laptops/", "").strip()
             laptop = database.get_laptop(laptop_id)
 
