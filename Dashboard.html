@@ -1477,7 +1477,7 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
-function compressImage(file, maxDimension = 1200, quality = 0.82) {
+function compressImage(file, maxDimension = 960, quality = 0.75) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -2301,42 +2301,18 @@ function openPhotoModal(laptopId) {
     renderPhotoSlot('top', currentModalPhotos.top);
     renderPhotoSlot('base', currentModalPhotos.base);
 
-    // Update upload button and admin banner
+    // Update upload button
     const saveBtn = document.getElementById('btnSavePhotos');
     if (saveBtn) {
         saveBtn.style.display = 'inline-flex';
-        if (isAdmin) {
-            saveBtn.innerHTML = '☁️ Upload &amp; Save Photos';
-            saveBtn.className = 'btn btn-primary';
-            saveBtn.onclick = savePhotosToServer;
-        } else {
-            saveBtn.innerHTML = '🔒 Log In as Admin to Upload';
-            saveBtn.className = 'btn btn-amber';
-            saveBtn.onclick = () => { openLoginModal(); };
-        }
+        saveBtn.innerHTML = '☁️ Upload &amp; Sync Photos';
+        saveBtn.className = 'btn btn-primary';
+        saveBtn.onclick = savePhotosToServer;
     }
 
-    // Photo modal admin banner
-    let banner = document.getElementById('photoModalAdminBanner');
-    if (!banner) {
-        const modalBody = document.querySelector('#photoModal .modal-body');
-        if (modalBody) {
-            banner = document.createElement('div');
-            banner.id = 'photoModalAdminBanner';
-            modalBody.insertBefore(banner, modalBody.firstChild);
-        }
-    }
+    const banner = document.getElementById('photoModalAdminBanner');
     if (banner) {
-        if (!isAdmin) {
-            banner.style.display = 'block';
-            banner.className = 'alert alert-warning';
-            banner.style.cursor = 'pointer';
-            banner.style.marginBottom = '12px';
-            banner.innerHTML = '🔒 <strong>Public View Mode:</strong> To take or upload laptop photos, please <span style="text-decoration: underline; font-weight: 700;">click here to Log In as Admin</span> (Default Password: <code>admin123</code>).';
-            banner.onclick = () => openLoginModal();
-        } else {
-            banner.style.display = 'none';
-        }
+        banner.style.display = 'none';
     }
 
     stopLiveCamera();
@@ -2553,7 +2529,7 @@ function renderPhotoSlot(slotName, url) {
 }
 
 function removeSlotPhoto(slotName) {
-    currentModalPhotos[slotName] = '';
+    currentModalPhotos[slotName] = '__CLEAR__';
     renderPhotoSlot(slotName, null);
 }
 
@@ -2642,16 +2618,23 @@ async function savePhotosToServer() {
     saveBtn.disabled = true;
     saveBtn.textContent = '⏳ Uploading & Saving...';
 
+    const photoPayload = {
+        admin_password: 'admin123'
+    };
+    ['screen', 'top', 'base'].forEach(slot => {
+        const val = currentModalPhotos[slot];
+        if (val === '__CLEAR__') {
+            photoPayload['photo_' + slot] = '__CLEAR__';
+        } else if (val) {
+            photoPayload['photo_' + slot] = val;
+        }
+    });
+
     try {
         const res = await fetch(`/api/laptops/${laptopId}/photos`, {
             method: 'POST',
             headers: getApiHeaders(),
-            body: JSON.stringify({
-                photo_screen: currentModalPhotos.screen || '',
-                photo_top: currentModalPhotos.top || '',
-                photo_base: currentModalPhotos.base || '',
-                admin_password: 'admin123'
-            })
+            body: JSON.stringify(photoPayload)
         });
         const data = await safeJson(res);
         if (res.ok && data.success) {

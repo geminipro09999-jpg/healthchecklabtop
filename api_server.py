@@ -270,13 +270,18 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
         return auth.is_super_admin(token)
 
     def read_json_body(self):
+        if hasattr(self, "_cached_json_body"):
+            return self._cached_json_body
         try:
             content_length = int(self.headers.get("Content-Length", 0))
             if content_length <= 0:
+                self._cached_json_body = {}
                 return {}
             raw_body = self.rfile.read(content_length).decode("utf-8")
-            return json.loads(raw_body)
+            self._cached_json_body = json.loads(raw_body)
+            return self._cached_json_body
         except Exception:
+            self._cached_json_body = {}
             return {}
 
     def get_path_and_query(self):
@@ -575,7 +580,6 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
             if not laptop:
                 return self.send_json({"error": "Laptop not found"}, 404)
 
-            body = self.read_json_body()
             # Expecting Base64 images: photo_screen, photo_top, photo_base
             company = "".join(c for c in laptop.get("company_name", "General") if c not in r'\/:*?"<>|').strip() or "General"
             dev_folder = f"{laptop.get('device_name', 'Laptop')}_{laptop.get('serial_number', 'NoSerial')}"
@@ -612,7 +616,7 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
                             pass
                     elif b64data.startswith("http://") or b64data.startswith("https://"):
                         updated_fields[key] = b64data
-                elif b64data == "":
+                elif b64data == "__CLEAR__":
                     updated_fields[key] = ""
 
             if updated_fields:
