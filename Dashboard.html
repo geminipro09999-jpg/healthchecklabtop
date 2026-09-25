@@ -928,6 +928,9 @@
             <!-- Auth Status Badge -->
             <div id="authBadge" class="auth-badge badge-public">🌐 Public View</div>
             
+            <!-- Excel / CSV Export Button -->
+            <button id="btnExportHeader" class="btn btn-success" onclick="exportLaptopsToExcel()" title="Export Laptop Health Report to Excel (.csv)">📊 Export Excel</button>
+
             <!-- Public Auth Button -->
             <button id="btnLogin" class="btn btn-amber" onclick="openLoginModal()">🔐 Admin Login</button>
             
@@ -1001,13 +1004,14 @@
             <button class="filter-btn" data-filter="faulty" onclick="setFilter('faulty')">⚠️ Warnings (<span id="countFaulty">0</span>)</button>
         </div>
 
-        <div>
+        <div style="display: flex; gap: 8px; align-items: center;">
             <select class="sort-select" id="sortSelect" onchange="onSortChange()" style="background: var(--surface-card); border: 1px solid var(--border); color: #fff; padding: 8px 10px; border-radius: 8px; font-size: 0.8rem;">
                 <option value="newest">Newest First</option>
                 <option value="score_desc">Score: High to Low</option>
                 <option value="score_asc">Score: Low to High</option>
                 <option value="name_asc">Name: A-Z</option>
             </select>
+            <button type="button" class="btn btn-success" onclick="exportLaptopsToExcel()" style="padding: 7px 12px; font-size: 0.8rem; white-space: nowrap;" title="Export Current List to Excel (.csv)">📊 Export Excel</button>
         </div>
     </div>
 
@@ -1933,6 +1937,223 @@ async function fetchLaptops() {
 }
 
 /* =========================================================
+   TRUTHFUL BATTERY STATUS & VERDICT LOGIC
+   ========================================================= */
+function getBatteryVerdict(laptop) {
+    if (!laptop) return { verdict: 'N/A', isDead: false, isDown: false, badgeHtml: '<span class="status-pill">N/A</span>', alertHtml: '', color: 'var(--text-muted)' };
+
+    // Check if AC Direct Power / Desktop PC
+    const isDesktop = (laptop.report_data && laptop.report_data.hasBattery === false) || 
+                      (laptop.model && laptop.model.toLowerCase().includes('desktop'));
+    if (isDesktop) {
+        return {
+            verdict: 'Desktop PC (Direct AC Power)',
+            isDead: false,
+            isDown: false,
+            badgeHtml: `<span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.4); color: #38bdf8; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem;">⚡ AC DIRECT POWER</span>`,
+            alertHtml: '',
+            color: '#38bdf8'
+        };
+    }
+
+    const bh = (laptop.battery_health !== undefined && laptop.battery_health !== null && laptop.battery_health !== '') 
+                ? Number(laptop.battery_health) 
+                : null;
+
+    if (bh === null || isNaN(bh)) {
+        return {
+            verdict: 'N/A',
+            isDead: false,
+            isDown: false,
+            badgeHtml: `<span style="background: rgba(255,255,255,0.08); color: var(--text-muted); padding: 2px 6px; border-radius: 4px; font-size: 0.72rem;">N/A</span>`,
+            alertHtml: '',
+            color: 'var(--text-muted)'
+        };
+    }
+
+    if (bh <= 0) {
+        return {
+            verdict: 'DEAD (Replace Battery Immediately)',
+            isDead: true,
+            isDown: true,
+            badgeHtml: `<span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.25); border: 1px solid #ef4444; color: #ff6b6b; font-weight: 800; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; letter-spacing: 0.3px;">💀 BATTERY DEAD</span>`,
+            alertHtml: `<div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; padding: 6px 10px; margin-top: 6px; font-size: 0.76rem; color: #fca5a5; display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 1rem;">💀</span> <div><strong>உண்மை நிலை (Battery Status):</strong> பேட்டரி முற்றிலும் செயலிழந்துள்ளது (DEAD)! புதிய பேட்டரி உடனே மாற்ற வேண்டும்.</div>
+            </div>`,
+            color: '#ef4444'
+        };
+    }
+
+    if (bh < 40) {
+        return {
+            verdict: `FULLY DOWN (${bh}%) - Backup Failing`,
+            isDead: false,
+            isDown: true,
+            badgeHtml: `<span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.18); border: 1px solid #f87171; color: #fca5a5; font-weight: 750; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem;">⚠️ FULLY DOWN (${bh}%)</span>`,
+            alertHtml: `<div style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 6px; padding: 6px 10px; margin-top: 6px; font-size: 0.76rem; color: #fde68a; display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 1rem;">⚠️</span> <div><strong>உண்மை நிலை (Battery Status):</strong> பேட்டரி பேக்கப் மிக பலவீனமாக உள்ளது (FULLY DOWN). மின்சாரம் நின்றால் உடனே ஆஃப் ஆகலாம்.</div>
+            </div>`,
+            color: '#f87171'
+        };
+    }
+
+    if (bh < 60) {
+        return {
+            verdict: `WEAK (${bh}%) - Degraded Backup`,
+            isDead: false,
+            isDown: false,
+            badgeHtml: `<span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(245, 158, 11, 0.18); border: 1px solid #fbbf24; color: #fbbf24; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 0.73rem;">📉 WEAK (${bh}%)</span>`,
+            alertHtml: '',
+            color: '#fbbf24'
+        };
+    }
+
+    if (bh < 80) {
+        return {
+            verdict: `FAIR (${bh}%) - Moderate Backup`,
+            isDead: false,
+            isDown: false,
+            badgeHtml: `<span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-weight: 600; padding: 2px 7px; border-radius: 4px; font-size: 0.73rem;">⚡ FAIR (${bh}%)</span>`,
+            alertHtml: '',
+            color: '#38bdf8'
+        };
+    }
+
+    return {
+        verdict: `HEALTHY (${bh}%) - Good Battery`,
+        isDead: false,
+        isDown: false,
+        badgeHtml: `<span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; font-weight: 600; padding: 2px 7px; border-radius: 4px; font-size: 0.73rem;">🔋 HEALTHY (${bh}%)</span>`,
+        alertHtml: '',
+        color: '#34d399'
+    };
+}
+
+/* =========================================================
+   EXCEL / CSV EXPORT LOGIC (WITH UTF-8 BOM)
+   ========================================================= */
+function exportLaptopsToExcel() {
+    const search = (document.getElementById('searchInput') ? document.getElementById('searchInput').value : '').toLowerCase().trim();
+
+    let targetList = allLaptops.filter(l => {
+        const matchesSearch = !search || 
+            (l.device_name && l.device_name.toLowerCase().includes(search)) ||
+            (l.model && l.model.toLowerCase().includes(search)) ||
+            (l.serial_number && l.serial_number.toLowerCase().includes(search)) ||
+            (l.customer_name && l.customer_name.toLowerCase().includes(search)) ||
+            (l.customer_phone && l.customer_phone.toLowerCase().includes(search)) ||
+            (l.company_name && l.company_name.toLowerCase().includes(search)) ||
+            (JSON.stringify(l.complaints || []).toLowerCase().includes(search));
+
+        if (!matchesSearch) return false;
+
+        const status = (l.service_status || '').toLowerCase();
+        const hasWarning = l.overall_status === 'Warning' || l.overall_status === 'Critical' || (l.battery_health && l.battery_health < 60);
+
+        if (currentFilter === 'service') return status.includes('diagnos') || status.includes('repair') || status.includes('received');
+        if (currentFilter === 'ready') return status.includes('complete') || status.includes('deliver') || status.includes('ready');
+        if (currentFilter === 'faulty') return hasWarning;
+        return true;
+    });
+
+    if (targetList.length === 0) {
+        targetList = allLaptops;
+    }
+
+    if (!targetList || targetList.length === 0) {
+        alert('⚠️ No laptop records available to export.');
+        return;
+    }
+
+    const headers = [
+        "No.",
+        "Company (நிறுவனம்)",
+        "Device Name (சாதனம்)",
+        "Assigned User Account (பயனாளர் கணக்கு)",
+        "Customer / Custodian (பெயர்)",
+        "Phone Number (தொலைபேசி)",
+        "Laptop Model (மாடல்)",
+        "Serial Number (வரிசை எண்)",
+        "Battery Health % (பேட்டரி ஆயுள்)",
+        "Battery Verdict - Truth (பேட்டரி உண்மை நிலை)",
+        "Battery Cycles (சுழற்சிகள்)",
+        "Hardware Issues & Complaints (சிக்கல்கள் & குறைபாடுகள்)",
+        "Overall Health Status (ஒட்டுமொத்த நிலை)",
+        "Service Status (சேவை நிலை)",
+        "Scan / Inspection Date (தேதி & நேரம்)"
+    ];
+
+    const rows = [];
+    targetList.forEach((lap, idx) => {
+        const bv = getBatteryVerdict(lap);
+
+        let userAccount = 'N/A';
+        const rd = lap.report_data || {};
+        if (typeof rd === 'object' && rd !== null) {
+            userAccount = rd.currentUser || rd.user || rd.User || 'N/A';
+        }
+
+        let issues = 'None';
+        if (Array.isArray(lap.complaints) && lap.complaints.length > 0) {
+            issues = lap.complaints.join(' | ');
+        } else if (lap.complaints) {
+            issues = String(lap.complaints);
+        }
+
+        const pDisks = (rd && (rd.physical_disks || rd.physicalDisks)) || [];
+        if (Array.isArray(pDisks)) {
+            const diskProblems = [];
+            pDisks.forEach(d => {
+                if (d.SmartStatus === 'FAILED') diskProblems.push(`Disk SMART FAILED (${d.FriendlyName || 'Drive'})`);
+                if (d.RemainingEndurance !== null && d.RemainingEndurance !== undefined && d.RemainingEndurance < 20) {
+                    diskProblems.push(`Disk Life Critical: ${d.RemainingEndurance}%`);
+                }
+            });
+            if (diskProblems.length > 0) {
+                issues = (issues === 'None' ? '' : issues + ' | ') + diskProblems.join(' | ');
+            }
+        }
+
+        const scanDate = formatReportDate(lap);
+
+        rows.push([
+            String(idx + 1),
+            String(lap.company_name || 'Unassigned'),
+            String(lap.device_name || ''),
+            String(userAccount),
+            String(lap.customer_name || 'Custodian'),
+            String(lap.customer_phone || ''),
+            String(lap.model || ''),
+            String(lap.serial_number || ''),
+            lap.battery_health !== undefined && lap.battery_health !== null ? `${lap.battery_health}%` : 'N/A',
+            bv.verdict,
+            String(lap.battery_cycle_count || 'N/A'),
+            issues,
+            String(lap.overall_status || 'Healthy'),
+            String(lap.service_status || 'Received'),
+            scanDate
+        ]);
+    });
+
+    let csvContent = "\uFEFF" + headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',') + "\r\n";
+    rows.forEach(r => {
+        csvContent += r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',') + "\r\n";
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const compName = (selectedCompany && selectedCompany !== 'All') ? selectedCompany.replace(/[^a-zA-Z0-9_-]/g, '_') : 'Fleet';
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Laptop_Health_Report_${compName}_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+/* =========================================================
    RENDER DASHBOARD & LAPTOP CARDS
    ========================================================= */
 function renderLaptops() {
@@ -2049,6 +2270,8 @@ function createLaptopCardHTML(l) {
     let badgeClass = 'badge-healthy';
     if (l.overall_status === 'Critical') badgeClass = 'badge-critical';
     else if (l.overall_status === 'Warning') badgeClass = 'badge-warning';
+
+    const bVerdict = getBatteryVerdict(l);
 
     // Photos: check photo_screen, photo_top, photo_base
     const photos = [];
@@ -2177,13 +2400,13 @@ function createLaptopCardHTML(l) {
                             </div>
                         </div>
                     ` : `
-                        <div class="spec-item" style="grid-column: span 2; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); padding: 8px 12px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div class="spec-item" style="grid-column: span 2; background: ${bVerdict.isDead ? 'rgba(239, 68, 68, 0.12)' : (bVerdict.isDown ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)')}; border: 1px solid ${bVerdict.isDead ? 'rgba(239, 68, 68, 0.45)' : (bVerdict.isDown ? 'rgba(245, 158, 11, 0.45)' : 'rgba(16, 185, 129, 0.25)')}; padding: 8px 12px; border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
                                 <div>
-                                    <span class="spec-label" style="color: var(--green);">🔋 Health (Wear)</span>
-                                    <span class="spec-value" style="color: ${l.battery_health && l.battery_health < 60 ? 'var(--red)' : (l.battery_health && l.battery_health < 80 ? 'var(--amber)' : '#34d399')}; font-weight: 700; font-size: 0.95rem;">
-                                        ${l.battery_health !== undefined && l.battery_health !== null ? l.battery_health + '%' : 'N/A'}
-                                    </span>
+                                    <span class="spec-label" style="color: ${bVerdict.color}; font-weight: 700;">🔋 பேட்டரி உண்மை நிலை</span>
+                                    <div style="margin-top: 3px;">
+                                        ${bVerdict.badgeHtml}
+                                    </div>
                                 </div>
                                 <div style="text-align: center;">
                                     <span class="spec-label" style="color: var(--accent);">⚡ Current Charge</span>
@@ -2198,6 +2421,7 @@ function createLaptopCardHTML(l) {
                                     </span>
                                 </div>
                             </div>
+                            ${bVerdict.alertHtml}
                         </div>
                     `}
                 </div>

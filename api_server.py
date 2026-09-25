@@ -361,6 +361,74 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
             laptops = database.get_laptops(company=company, search=search, status=status)
             return self.send_json({"success": True, "laptops": laptops, "total": len(laptops)})
 
+        if path in ("/api/laptops/export.csv", "/api/laptops/export"):
+            company = qs.get("company", [None])[0]
+            search = qs.get("search", [None])[0]
+            status = qs.get("status", [None])[0]
+            laptops = database.get_laptops(company=company, search=search, status=status)
+            
+            headers = ["No.", "Company", "Device Name", "Assigned User", "Customer", "Phone", "Model", "Serial Number", "Battery Health %", "Battery Verdict (Truth)", "Battery Cycles", "Hardware Issues & Complaints", "Overall Status", "Service Status", "Created At"]
+            rows = []
+            for idx, lap in enumerate(laptops, 1):
+                bh = lap.get("battery_health")
+                is_desktop = (lap.get("model") and "desktop" in str(lap.get("model", "")).lower())
+                if is_desktop:
+                    b_verdict = "AC Direct Power (Desktop PC)"
+                elif bh is not None and int(bh) <= 0:
+                    b_verdict = "DEAD (Replace Battery Immediately)"
+                elif bh is not None and int(bh) < 40:
+                    b_verdict = f"FULLY DOWN ({bh}%)"
+                elif bh is not None and int(bh) < 60:
+                    b_verdict = f"WEAK ({bh}%)"
+                elif bh is not None and int(bh) < 80:
+                    b_verdict = f"FAIR ({bh}%)"
+                elif bh is not None:
+                    b_verdict = f"HEALTHY ({bh}%)"
+                else:
+                    b_verdict = "N/A"
+
+                user_acc = "N/A"
+                rd = lap.get("report_data") or {}
+                if isinstance(rd, dict):
+                    user_acc = rd.get("currentUser") or rd.get("user") or rd.get("User") or "N/A"
+
+                complaints = lap.get("complaints", [])
+                if isinstance(complaints, list):
+                    issues = " | ".join(str(c) for c in complaints)
+                else:
+                    issues = str(complaints or "None")
+
+                rows.append([
+                    str(idx),
+                    str(lap.get("company_name", "")),
+                    str(lap.get("device_name", "")),
+                    str(user_acc),
+                    str(lap.get("customer_name", "")),
+                    str(lap.get("customer_phone", "")),
+                    str(lap.get("model", "")),
+                    str(lap.get("serial_number", "")),
+                    f"{bh}%" if bh is not None else "N/A",
+                    b_verdict,
+                    str(lap.get("battery_cycle_count") or "N/A"),
+                    issues,
+                    str(lap.get("overall_status", "Healthy")),
+                    str(lap.get("service_status", "Received")),
+                    str(lap.get("created_at", ""))
+                ])
+
+            csv_text = "\ufeff" + ",".join(f'"{h}"' for h in headers) + "\r\n"
+            for r in rows:
+                csv_text += ",".join(f'"{cell.replace(chr(34), chr(34)+chr(34))}"' for cell in r) + "\r\n"
+
+            csv_bytes = csv_text.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv; charset=utf-8")
+            self.send_header("Content-Disposition", 'attachment; filename="Laptop_Health_Report.csv"')
+            self.send_header("Content-Length", str(len(csv_bytes)))
+            self.end_headers()
+            self.wfile.write(csv_bytes)
+            return
+
         if path.startswith("/api/laptops/"):
             laptop_id = path.replace("/api/laptops/", "").strip()
             laptop = database.get_laptop(laptop_id)
