@@ -284,7 +284,27 @@ def seed_existing_reports(conn):
             except Exception as e:
                 print(f"Error seeding {fname}: {e}")
 
+LAPTOP_LIST_COLUMNS = "id,company_name,customer_name,customer_phone,device_name,model,serial_number,cpu,ram,storage,gpu,battery_health,overall_status,service_status,complaints,photo_screen,photo_top,photo_base,report_filename,report_data,battery_report_filename,battery_cycle_count,gdrive_folder_url,created_at,updated_at"
+
+_laptops_cache = {}
+_laptops_cache_time = 0
+_companies_cache = None
+_companies_cache_time = 0
+CACHE_TTL = 45  # In-memory cache valid for 45s, invalidated immediately on write
+
+def invalidate_cache():
+    global _laptops_cache, _laptops_cache_time, _companies_cache, _companies_cache_time
+    _laptops_cache.clear()
+    _laptops_cache_time = 0
+    _companies_cache = None
+    _companies_cache_time = 0
+
 def get_companies():
+    global _companies_cache, _companies_cache_time
+    now = time.time()
+    if _companies_cache is not None and (now - _companies_cache_time) < CACHE_TTL:
+        return _companies_cache
+
     sb_cfg = get_supabase_config()
     if sb_cfg[0] and sb_cfg[1]:
         try:
@@ -309,6 +329,8 @@ def get_companies():
                     if n == "UNICOMTIC": return 0
                     return 1
                 result.sort(key=lambda x: (sort_key(x), x.get("name", "")))
+                _companies_cache = result
+                _companies_cache_time = now
                 return result
         except Exception as e:
             print(f"Notice: Supabase get_companies fallback: {e}")
@@ -329,7 +351,10 @@ def get_companies():
     """)
     rows = cursor.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    res = [dict(r) for r in rows]
+    _companies_cache = res
+    _companies_cache_time = now
+    return res
 
 def find_company_by_name(name: str):
     """
@@ -372,6 +397,8 @@ def add_company(name: str):
     if existing:
         return False, f"Company '{existing.get('name')}' already exists"
 
+    invalidate_cache()
+
     sb_cfg = get_supabase_config()
     if sb_cfg[0] and sb_cfg[1]:
         try:
@@ -391,11 +418,45 @@ def add_company(name: str):
         return False, f"Company '{name}' already exists"
 
 def get_laptops(company=None, search=None, status=None):
+    global _laptops_cache, _laptops_cache_time
+    cache_key = f"{company}:{search}:{status}"
+    now = time.time()
+    if cache_key in _laptops_cache and (now - _laptops_cache_time) < CACHE_TTL:
+        return _laptops_cache[cache_key]
+
+    # In-memory fast filter from master cache if available
+    master_key = "None:None:None"
+    if master_key in _laptops_cache and (now - _laptops_cache_time) < CACHE_TTL:
+        master_list = _laptops_cache[master_key]
+        filtered = []
+        for d in master_list:
+            if company and company.strip() and company != "All":
+                if (d.get("company_name") or "").strip().lower() != company.strip().lower():
+                    continue
+            if status and status.strip() and status != "All":
+                st = status.strip().lower()
+                if (d.get("overall_status") or "").lower() != st and (d.get("service_status") or "").lower() != st:
+                    continue
+            if search and search.strip():
+                term = search.strip().lower()
+                match = (
+                    term in (d.get("device_name") or "").lower() or
+                    term in (d.get("model") or "").lower() or
+                    term in (d.get("serial_number") or "").lower() or
+                    term in (d.get("customer_name") or "").lower() or
+                    any(term in str(c).lower() for c in d.get("complaints", []))
+                )
+                if not match:
+                    continue
+            filtered.append(d)
+        _laptops_cache[cache_key] = filtered
+        return filtered
+
     sb_cfg = get_supabase_config()
     if sb_cfg[0] and sb_cfg[1]:
         try:
             params = {
-                "select": "*",
+                "select": LAPTOP_LIST_COLUMNS,
                 "order": "created_at.desc"
             }
             if company and company.strip() and company != "All":
@@ -436,6 +497,8 @@ def get_laptops(company=None, search=None, status=None):
                             continue
 
                     result.append(d)
+                _laptops_cache[cache_key] = result
+                _laptops_cache_time = now
                 return result
         except Exception as e:
             print(f"Notice: Supabase get_laptops fallback: {e}")
@@ -443,7 +506,7 @@ def get_laptops(company=None, search=None, status=None):
     conn = get_connection()
     cursor = conn.cursor()
     
-    query = "SELECT * FROM laptops WHERE 1=1"
+    query = f"SELECT {LAPTOP_LIST_COLUMNS} FROM laptops WHERE 1=1"
     params = []
     
     if company and company.strip() and company != "All":
@@ -473,6 +536,8 @@ def get_laptops(company=None, search=None, status=None):
         except Exception:
             d["complaints"] = [d["complaints"]]
         result.append(d)
+    _laptops_cache[cache_key] = result
+    _laptops_cache_time = now
     return result
 
 def get_laptop(laptop_id: str):
@@ -781,6 +846,7 @@ def create_laptop(data: dict):
     conn.commit()
     conn.close()
     laptop = get_laptop(lap_id)
+    invalidate_cache()
     try:
         import threading, gdrive_sync
         threading.Thread(target=gdrive_sync.update_laptop_in_master_inventory, args=(laptop,), daemon=True).start()
@@ -910,6 +976,7 @@ def update_laptop(laptop_id: str, data: dict):
     conn.commit()
     conn.close()
     laptop = get_laptop(real_id)
+    invalidate_cache()
     try:
         import threading, gdrive_sync
         threading.Thread(target=gdrive_sync.update_laptop_in_master_inventory, args=(laptop,), daemon=True).start()
@@ -935,6 +1002,8 @@ def delete_laptop(laptop_id: str):
     deleted = cursor.rowcount > 0
     conn.commit()
     conn.close()
+    if deleted:
+        invalidate_cache()
     if deleted and laptop:
         try:
             import threading, gdrive_sync

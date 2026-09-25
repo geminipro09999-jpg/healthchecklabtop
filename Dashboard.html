@@ -1707,6 +1707,9 @@ async function loadCompanies() {
         if (res.ok) {
             const data = await res.json();
             allCompanies = data.companies || [];
+            try {
+                sessionStorage.setItem('cached_companies', JSON.stringify(allCompanies));
+            } catch (e) {}
             updateCompanyDropdowns();
         }
     } catch (e) {
@@ -1928,6 +1931,11 @@ async function fetchLaptops() {
         if (res.ok) {
             const data = await res.json();
             allLaptops = data.laptops || [];
+            if (!selectedCompany || selectedCompany === 'All') {
+                try {
+                    sessionStorage.setItem('cached_laptops', JSON.stringify(allLaptops));
+                } catch (e) {}
+            }
             renderLaptops();
             return;
         }
@@ -2369,7 +2377,7 @@ function createLaptopCardHTML(l) {
             <div class="carousel-container" id="carousel-${l.id}">
                 ${photos.map((img, idx) => `
                     <div class="carousel-slide ${idx === 0 ? 'active' : ''}" data-idx="${idx}">
-                        <img src="${formatPhotoUrl(img.url)}" alt="${l.device_name} Photo ${idx + 1}" onerror="handleImgError(this)" onclick="openLightbox('${img.url.replace(/'/g, "\\'")}', '${l.device_name} - ${img.title}')">
+                        <img loading="lazy" decoding="async" src="${formatPhotoUrl(img.url)}" alt="${l.device_name} Photo ${idx + 1}" onerror="handleImgError(this)" onclick="openLightbox('${img.url.replace(/'/g, "\\'")}', '${l.device_name} - ${img.title}')">
                     </div>
                 `).join('')}
                 ${imageCount > 1 ? `
@@ -3770,6 +3778,22 @@ function closeModal(modalId) {
    INITIALIZATION
    ========================================================= */
 window.addEventListener('DOMContentLoaded', async () => {
+    // 0ms Instant Cache Hydration: Render immediately from sessionStorage while fresh data loads
+    try {
+        const cachedComps = sessionStorage.getItem('cached_companies');
+        if (cachedComps) {
+            allCompanies = JSON.parse(cachedComps);
+            updateCompanyDropdowns();
+        }
+        const cachedLaps = sessionStorage.getItem('cached_laptops');
+        if (cachedLaps) {
+            allLaptops = JSON.parse(cachedLaps);
+            renderLaptops();
+        }
+    } catch (e) {
+        console.warn('Instant cache restoration error:', e);
+    }
+
     // Check URL parameters for direct mobile connect (?upload_photos=LAP-XXX&token=YYY)
     const urlParams = new URLSearchParams(window.location.search);
     const tokenParam = urlParams.get('token') || urlParams.get('auth_token');
@@ -3793,10 +3817,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     setupActivityListeners();
 
-    await checkAuthStatus();
-    await loadCompanies();
-    await fetchLaptops();
-    await checkDriveStatus(false);
+    // Parallelize network requests for maximum speed
+    await Promise.all([
+        checkAuthStatus(),
+        loadCompanies(),
+        fetchLaptops()
+    ]);
+
+    // Google Drive status check runs smoothly in the background without blocking the UI
+    checkDriveStatus(false).catch(err => console.warn('Drive status check error:', err));
 
     // If opened on phone via QR code or mobile link to capture photos
     if (photoTargetId) {

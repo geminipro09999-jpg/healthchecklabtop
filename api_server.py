@@ -17,6 +17,7 @@ import urllib.parse
 import re
 import time
 import threading
+import gzip
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -252,11 +253,21 @@ class LaptopApiHandler(SimpleHTTPRequestHandler):
 
     def send_json(self, data, status_code=200):
         body = json.dumps(data, default=str).encode("utf-8")
-        self.send_response(status_code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        accept_encoding = self.headers.get("Accept-Encoding", "") if hasattr(self, "headers") and self.headers else ""
+        if "gzip" in accept_encoding and len(body) > 1024:
+            compressed = gzip.compress(body, compresslevel=6)
+            self.send_response(status_code)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Encoding", "gzip")
+            self.send_header("Content-Length", str(len(compressed)))
+            self.end_headers()
+            self.wfile.write(compressed)
+        else:
+            self.send_response(status_code)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
 
     def get_token(self):
         auth_header = self.headers.get("Authorization", "")
@@ -1364,7 +1375,16 @@ def start_server(port=8080):
     print("  - Initial Admin Password: admin123 (Change anytime via dashboard)")
     print("=" * 65)
     print("  Server is listening... Press Ctrl+C to stop.")
-    
+
+    # Warm cache in background thread so first dashboard load is instantaneous
+    def _warm_cache():
+        try:
+            database.get_companies()
+            database.get_laptops()
+        except Exception:
+            pass
+    threading.Thread(target=_warm_cache, daemon=True).start()
+
     try:
         httpd = ThreadingHTTPServer(server_address, LaptopApiHandler)
         httpd.serve_forever()
