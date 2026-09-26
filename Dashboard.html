@@ -675,6 +675,60 @@
             color: var(--accent);
             font-weight: 700;
         }
+        .page-size-custom {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin-left: 6px;
+        }
+        .page-size-input {
+            width: 58px;
+            height: 28px;
+            background: var(--surface-card);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 2px 4px;
+            outline: none;
+            transition: all 0.15s ease;
+            -moz-appearance: textfield;
+        }
+        .page-size-input::-webkit-outer-spin-button,
+        .page-size-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .page-size-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+            background: #10192e;
+        }
+        .btn-apply-size {
+            background: var(--surface-card);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 0 10px;
+            height: 28px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-apply-size:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+            background: rgba(56, 189, 248, 0.15);
+        }
+        .btn-apply-size:active {
+            transform: scale(0.96);
+        }
         .pagination-buttons {
             display: flex;
             align-items: center;
@@ -1155,10 +1209,14 @@
                 <span class="page-size-label">Per page:</span>
                 <div class="page-size-chips" id="pageSizeChips">
                     <button type="button" class="chip-size" data-size="6" onclick="setItemsPerPage(6)">6</button>
-                    <button type="button" class="chip-size active" data-size="9" onclick="setItemsPerPage(9)">9</button>
-                    <button type="button" class="chip-size" data-size="12" onclick="setItemsPerPage(12)">12</button>
+                    <button type="button" class="chip-size" data-size="9" onclick="setItemsPerPage(9)">9</button>
+                    <button type="button" class="chip-size active" data-size="12" onclick="setItemsPerPage(12)">12</button>
                     <button type="button" class="chip-size" data-size="24" onclick="setItemsPerPage(24)">24</button>
                     <button type="button" class="chip-size" data-size="all" onclick="setItemsPerPage('all')">All</button>
+                </div>
+                <div class="page-size-custom">
+                    <input type="number" id="pageSizeInput" class="page-size-input" min="1" max="9999" value="12" placeholder="12" title="Type how many laptops to show per page and press Enter" onkeydown="if(event.key==='Enter') applyCustomPageSize()" onchange="applyCustomPageSize()">
+                    <button type="button" class="btn-apply-size" id="btnApplySize" onclick="applyCustomPageSize()" title="Load specified count">Load</button>
                 </div>
             </div>
         </div>
@@ -1605,7 +1663,7 @@ let authToken = localStorage.getItem('laptop_admin_token') || null;
 
 // Pagination state
 let currentPage = 1;
-let itemsPerPage = 9;
+let itemsPerPage = 12;
 let totalPagesCount = 1;
 
 // Temporary cache for photo upload modal
@@ -2021,9 +2079,22 @@ function setItemsPerPage(size) {
     if (size === 'all') {
         itemsPerPage = 999999;
     } else {
-        itemsPerPage = parseInt(size, 10) || 9;
+        itemsPerPage = parseInt(size, 10) || 12;
     }
     currentPage = 1;
+
+    // Synchronize input box value
+    const input = document.getElementById('pageSizeInput');
+    if (input) {
+        if (size === 'all') {
+            input.value = '';
+            input.placeholder = 'All';
+        } else {
+            input.value = itemsPerPage;
+            input.placeholder = '12';
+        }
+    }
+
     document.querySelectorAll('.chip-size').forEach(btn => {
         const btnSize = btn.getAttribute('data-size');
         if (size === 'all') {
@@ -2033,6 +2104,23 @@ function setItemsPerPage(size) {
         }
     });
     renderLaptops();
+}
+
+function applyCustomPageSize() {
+    const input = document.getElementById('pageSizeInput');
+    if (!input) return;
+    const rawVal = input.value.trim();
+    if (rawVal === '') {
+        setItemsPerPage(12);
+        return;
+    }
+    const val = parseInt(rawVal, 10);
+    if (isNaN(val) || val < 1) {
+        setItemsPerPage(12);
+        input.value = 12;
+        return;
+    }
+    setItemsPerPage(val);
 }
 
 function changePage(newPage) {
